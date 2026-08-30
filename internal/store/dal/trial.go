@@ -27,7 +27,7 @@ func GetTrial(ctx context.Context, tx *gorm.DB, fingerprintID string, module int
 // when the (fingerprint_id, module) row already exists — concurrent trial
 // starts collapse to exactly one row, and the caller re-reads to recover the
 // winning started_at.
-func InsertTrialOnConflictDoNothing(ctx context.Context, tx *gorm.DB, tr *models.LicenseTrial) error {
+func InsertTrialOnConflictDoNothing(_ context.Context, tx *gorm.DB, tr *models.LicenseTrial) error {
 	res := tx.Model(&models.LicenseTrial{}).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "fingerprint_id"}, {Name: "module"}},

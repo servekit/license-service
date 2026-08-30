@@ -32,7 +32,7 @@ func ListEntitlementsByKeyHash(ctx context.Context, tx *gorm.DB, keyHash string)
 // DO-UPDATE arm is a raw assignment map because expires_at must be clearable
 // to NULL when a grant switches a module to perpetual (field.Time cannot
 // SET NULL — documented exception); conditions stay on generated helpers.
-func UpsertEntitlement(ctx context.Context, tx *gorm.DB, e *models.LicenseEntitlement) error {
+func UpsertEntitlement(_ context.Context, tx *gorm.DB, e *models.LicenseEntitlement) error {
 	res := tx.Model(&models.LicenseEntitlement{}).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{

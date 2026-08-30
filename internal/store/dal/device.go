@@ -51,7 +51,7 @@ func ListDevicesByKeyHash(ctx context.Context, tx *gorm.DB, keyHash string) ([]*
 // whenever the fingerprint drifted (token-matched rebind). Map arm exists
 // because the generic Update is single-column and the rebind column must be
 // optional per call (documented exception).
-func TouchDevice(ctx context.Context, tx *gorm.DB, keyHash, deviceToken, fingerprintID string, now time.Time, rebind bool) error {
+func TouchDevice(_ context.Context, tx *gorm.DB, keyHash, deviceToken, fingerprintID string, now time.Time, rebind bool) error {
 	assign := map[string]any{
 		"fingerprint_id": fingerprintID,
 		"last_seen_at":   now,
