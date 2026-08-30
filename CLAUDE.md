@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-License service — 基于 [go-common](https://github.com/servekit/go-common) 的 gRPC + grpc-gateway 微服务。
+License service — 基于 [go-common](https://github.com/servekit/go-common) 的**纯 gRPC** 微服务（客户端 HTTP 面由将来的独立网关提供，见 `docs/wire-contract.md`；`:18086` 为其预留）。
 遵循 servekit `-service` 架构（`pkg/internal/cmd/api/gen` 分层、grpcx、`lifecycle.Manager`）。
 
 ## 架构铁律（写代码前必读）
@@ -50,10 +50,22 @@ scaffold 已按生成时的能力开关接好；这里说的是**生成之后**�
 
 ## 运行模式
 
-1. **standalone gRPC**: `make run` → listen :9000
-2. **HTTP gateway**: 同上自动启用，:8080（除非 `server.http_addr` 为空）
-3. **in-process module**: 其它服务 `import "license-service/pkg"` → `pkg.NewModule(cfg, opts...)`
-4. **Docker**: `make docker-up` —— 用 `Dockerfile` + `docker-compose.yaml` 起完整栈（含 postgres 等，跑 healthcheck）；`make docker-down` 停。Docker 产物由 `golang-service-docker` skill 生成。
+1. **standalone gRPC**: `make run` → listen :19096
+2. **HTTP 面**: 本期不启（`server.http_addr` 默认空；grpcx 的 `registerGW` 为 nil）。将来由独立网关承接，proto 的 `google.api.http` 注解就是它的路由契约
+3. **in-process module**: 其它服务 `import "github.com/servekit/license-service/pkg"` → `pkg.NewModule(cfg, opts...)`
+4. **Docker**: `make docker-up` —— 用 `Dockerfile` + `docker-compose.yaml` 起完整栈（license + postgres + redis，跑 grpc healthcheck）；`make docker-down` 停。Docker 产物由 `golang-service-docker` skill 生成。
+
+## 本服务专属铁律（license 契约，违反即客户端故障）
+
+- **gRPC 状态码即错误契约**：六个业务错误码精确映射（InvalidArgument/Unauthenticated/PermissionDenied/AlreadyExists/ResourceExhausted），未来网关按默认映射恰好得到 400/401/403/409/429。改 `pkg/xcodes/license.go` 的 category = 改客户端行为。
+- **凭证 payload 必须 canonical**：`internal/service/cert` 的序列化器是被客户端逐字节互证的（golden 向量锁死）；任何字段增删都要跑 golden。
+- **永不复用 issuedAt**：每次响应用当前时间重签、certId 新 UUID——客户端单调水位依赖此性质。
+- **perpetual `expiresAt` 恒 null、subscription/trial 恒非 null**：双侧（admin 授予 + activation）都要守住。
+- **409 退还限速额度**：SLOT_LIMIT 路径必须 `refund()`（客户端选完设备要能立即重试）。
+- **试用必须并入凭证**：key 凭证与试用凭证在客户端单槽存储下会互相冲掉——`signCert` 的并集逻辑不能拆。
+- **日志脱敏**：明文 key / fingerprint_id / remote_addr / payload / signature 绝不进日志；排障用 licenseId + device_token + certId。trial 审计目标用 `sha256(fp)[:16]`。
+- **DB 无软删除是有意的**（spec §4 硬行语义：槽位释放/试用重置/upsert 唯一性），不要"补上" DeletedAt；keys 的吊销是 Status 软状态。
+- **表前缀在 struct 名**（LicenseKey → license_keys），不要加 dbx table_prefix。
 
 ## 常用命令
 

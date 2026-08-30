@@ -1,0 +1,46 @@
+# license-service deployment topology (design doc §13).
+#
+# Caddy terminates TLS (ACME) on a mainland-reachable node and reverse-proxies
+# ONLY the four client paths. The HTTP face itself is served by a future
+# standalone gateway (docs/wire-contract.md) — until that exists, this
+# Caddyfile documents the intended upstream slot. The gRPC port and the admin
+# surface are internal-only (Bearer token on top; never expose them here).
+
+license.aividlab.app {
+	encode gzip
+
+	# Client paths — the only ones reachable from the internet.
+	@activate   path /v1/activate
+	@deactivate path /v1/deactivate
+	@trial      path /v1/trial/start
+	@healthz    path /healthz
+
+	handle @activate {
+		reverse_proxy 127.0.0.1:18086
+	}
+	handle @deactivate {
+		reverse_proxy 127.0.0.1:18086
+	}
+	handle @trial {
+		reverse_proxy 127.0.0.1:18086
+	}
+	handle @healthz {
+		reverse_proxy 127.0.0.1:18086
+	}
+
+	# Everything else (including /v1/admin/*) is refused.
+	respond 404
+}
+
+# NOTE (topology when the standalone gateway lands):
+#
+#   internet → Caddy (TLS) → standalone HTTP gateway :18086
+#                                └─ gRPC → license-service :19096
+#
+# The gateway owns the wire contract (error-body flattening, Retry-After,
+# X-Request-Id, 4 KiB body limit — docs/wire-contract.md). Caddy keeps doing
+# TLS + path allow-listing only.
+#
+# Optional coarse per-IP rate limiting can be layered here once the gateway
+# exists (e.g. the rate_limit module); the service-side business limiter
+# never depends on it.
