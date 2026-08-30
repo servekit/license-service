@@ -82,12 +82,15 @@ func (h *harness) devices(t *testing.T, keyHash string) []*models.LicenseDevice 
 }
 
 func actReq(key, fp, token, evict string) *licensev1.ActivateRequest {
-	return &licensev1.ActivateRequest{
-		Key:              key,
-		FingerprintId:    fp,
-		DeviceToken:      token,
-		EvictDeviceToken: evict,
+	req := &licensev1.ActivateRequest{
+		Key:           key,
+		FingerprintId: fp,
+		DeviceToken:   token,
 	}
+	if evict != "" {
+		req.EvictDeviceToken = &evict
+	}
+	return req
 }
 
 const (
