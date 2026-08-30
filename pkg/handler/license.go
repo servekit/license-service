@@ -72,3 +72,75 @@ func (h *Handler) Deactivate(ctx context.Context, req *licensev1.DeactivateReque
 func (h *Handler) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
 	return h.svc.TrialStart(ctx, req)
 }
+
+// ─── admin delegations ──────────────────────────────────────────────────────
+
+// CreateKey mints a key; the plaintext appears exactly once in the response.
+func (h *Handler) CreateKey(ctx context.Context, req *licensev1.CreateKeyRequest) (*licensev1.CreateKeyResponse, error) {
+	return h.svc.CreateKey(ctx, req)
+}
+
+// ShowKey returns the full key view with the slot roster.
+func (h *Handler) ShowKey(ctx context.Context, req *licensev1.ShowKeyRequest) (*licensev1.ShowKeyResponse, error) {
+	return h.svc.ShowKey(ctx, req)
+}
+
+// ListKeys returns the key roster (status 0 = all).
+func (h *Handler) ListKeys(ctx context.Context, req *licensev1.ListKeysRequest) (*licensev1.ListKeysResponse, error) {
+	return h.svc.ListKeys(ctx, req)
+}
+
+// UpdateKey applies optional label/slots updates.
+func (h *Handler) UpdateKey(ctx context.Context, req *licensev1.UpdateKeyRequest) (*licensev1.UpdateKeyResponse, error) {
+	return h.svc.UpdateKey(ctx, req)
+}
+
+// RevokeKey freezes the key soft-state.
+func (h *Handler) RevokeKey(ctx context.Context, req *licensev1.RevokeKeyRequest) (*licensev1.RevokeKeyResponse, error) {
+	return h.svc.RevokeKey(ctx, req)
+}
+
+// UnrevokeKey reactivates a revoked key.
+func (h *Handler) UnrevokeKey(ctx context.Context, req *licensev1.UnrevokeKeyRequest) (*licensev1.UnrevokeKeyResponse, error) {
+	return h.svc.UnrevokeKey(ctx, req)
+}
+
+// DeleteKey physically deletes the key with app-level cascade.
+func (h *Handler) DeleteKey(ctx context.Context, req *licensev1.DeleteKeyRequest) (*licensev1.DeleteKeyResponse, error) {
+	return h.svc.DeleteKey(ctx, req)
+}
+
+// GrantModule upserts one module entitlement.
+func (h *Handler) GrantModule(ctx context.Context, req *licensev1.GrantModuleRequest) (*licensev1.GrantModuleResponse, error) {
+	return h.svc.GrantModule(ctx, req)
+}
+
+// RevokeModule removes one module entitlement.
+func (h *Handler) RevokeModule(ctx context.Context, req *licensev1.RevokeModuleRequest) (*licensev1.RevokeModuleResponse, error) {
+	return h.svc.RevokeModule(ctx, req)
+}
+
+// ListKeyDevices returns the slot roster of a key.
+func (h *Handler) ListKeyDevices(ctx context.Context, req *licensev1.ListKeyDevicesRequest) (*licensev1.ListKeyDevicesResponse, error) {
+	return h.svc.ListKeyDevices(ctx, req)
+}
+
+// KickDevice force-releases one slot (support-side eviction).
+func (h *Handler) KickDevice(ctx context.Context, req *licensev1.KickDeviceRequest) (*licensev1.KickDeviceResponse, error) {
+	return h.svc.KickDevice(ctx, req)
+}
+
+// ShowTrial returns a fingerprint's trial ledger.
+func (h *Handler) ShowTrial(ctx context.Context, req *licensev1.ShowTrialRequest) (*licensev1.ShowTrialResponse, error) {
+	return h.svc.ShowTrial(ctx, req)
+}
+
+// ResetTrial deletes one trial ledger row (manual reset channel).
+func (h *Handler) ResetTrial(ctx context.Context, req *licensev1.ResetTrialRequest) (*licensev1.ResetTrialResponse, error) {
+	return h.svc.ResetTrial(ctx, req)
+}
+
+// ShowPubKey exposes the signing public key(s) for client pinning.
+func (h *Handler) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
+	return h.svc.ShowPubKey(ctx, req)
+}

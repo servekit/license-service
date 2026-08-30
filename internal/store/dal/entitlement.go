@@ -51,6 +51,19 @@ func UpsertEntitlement(_ context.Context, tx *gorm.DB, e *models.LicenseEntitlem
 	return res.Error
 }
 
+// GetEntitlement fetches one (key_hash, module) row; gorm.ErrRecordNotFound
+// when absent.
+func GetEntitlement(ctx context.Context, tx *gorm.DB, keyHash string, module int32) (*models.LicenseEntitlement, error) {
+	e, err := gorm.G[models.LicenseEntitlement](tx).
+		Where(generated.LicenseEntitlement.KeyHash.Eq(keyHash)).
+		Where(generated.LicenseEntitlement.Module.Eq(module)).
+		Take(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
 // DeleteEntitlement removes one module row (module becomes unlicensed on the
 // next issuance).
 func DeleteEntitlement(ctx context.Context, tx *gorm.DB, keyHash string, module int32) error {

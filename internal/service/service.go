@@ -28,6 +28,7 @@ import (
 	licensev1 "github.com/servekit/license-service/gen/license/v1"
 	"github.com/servekit/license-service/internal/jobs"
 	"github.com/servekit/license-service/internal/service/activation"
+	"github.com/servekit/license-service/internal/service/admin"
 	"github.com/servekit/license-service/internal/version"
 
 	"github.com/servekit/license-service/pkg/config"
@@ -51,6 +52,8 @@ type Service struct {
 
 	// activation owns the client-facing activation domain (A1–A12).
 	activation *activation.Service
+	// admin owns the operator surface (keys, grants, devices, trials).
+	admin *admin.Service
 
 	// startedAt is set once in New; Ping returns it for uptime.
 	startedAt int64
@@ -108,6 +111,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		rdb: rdb,
 
 		activation: activation.New(db, rdb, signer, trialDays),
+		admin:      admin.New(db, signer, trialDays),
 
 		startedAt: time.Now().UnixMilli(),
 	}
@@ -162,6 +166,78 @@ func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateReque
 // TrialStart delegates to the activation domain (keyless trial ledger).
 func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
 	return s.activation.TrialStart(ctx, req)
+}
+
+// --- admin facades (one per LicenseAdminService RPC) ---
+
+// CreateKey mints a key; the plaintext appears exactly once in the response.
+func (s *Service) CreateKey(ctx context.Context, req *licensev1.CreateKeyRequest) (*licensev1.CreateKeyResponse, error) {
+	return s.admin.CreateKey(ctx, req)
+}
+
+// ShowKey returns the full key view with the slot roster.
+func (s *Service) ShowKey(ctx context.Context, req *licensev1.ShowKeyRequest) (*licensev1.ShowKeyResponse, error) {
+	return s.admin.ShowKey(ctx, req)
+}
+
+// ListKeys returns the key roster (status 0 = all).
+func (s *Service) ListKeys(ctx context.Context, req *licensev1.ListKeysRequest) (*licensev1.ListKeysResponse, error) {
+	return s.admin.ListKeys(ctx, req)
+}
+
+// UpdateKey applies optional label/slots updates.
+func (s *Service) UpdateKey(ctx context.Context, req *licensev1.UpdateKeyRequest) (*licensev1.UpdateKeyResponse, error) {
+	return s.admin.UpdateKey(ctx, req)
+}
+
+// RevokeKey freezes the key soft-state.
+func (s *Service) RevokeKey(ctx context.Context, req *licensev1.RevokeKeyRequest) (*licensev1.RevokeKeyResponse, error) {
+	return s.admin.RevokeKey(ctx, req)
+}
+
+// UnrevokeKey reactivates a revoked key.
+func (s *Service) UnrevokeKey(ctx context.Context, req *licensev1.UnrevokeKeyRequest) (*licensev1.UnrevokeKeyResponse, error) {
+	return s.admin.UnrevokeKey(ctx, req)
+}
+
+// DeleteKey physically deletes the key with app-level cascade.
+func (s *Service) DeleteKey(ctx context.Context, req *licensev1.DeleteKeyRequest) (*licensev1.DeleteKeyResponse, error) {
+	return s.admin.DeleteKey(ctx, req)
+}
+
+// GrantModule upserts one module entitlement.
+func (s *Service) GrantModule(ctx context.Context, req *licensev1.GrantModuleRequest) (*licensev1.GrantModuleResponse, error) {
+	return s.admin.GrantModule(ctx, req)
+}
+
+// RevokeModule removes one module entitlement.
+func (s *Service) RevokeModule(ctx context.Context, req *licensev1.RevokeModuleRequest) (*licensev1.RevokeModuleResponse, error) {
+	return s.admin.RevokeModule(ctx, req)
+}
+
+// ListKeyDevices returns the slot roster of a key.
+func (s *Service) ListKeyDevices(ctx context.Context, req *licensev1.ListKeyDevicesRequest) (*licensev1.ListKeyDevicesResponse, error) {
+	return s.admin.ListKeyDevices(ctx, req)
+}
+
+// KickDevice force-releases one slot (support-side eviction).
+func (s *Service) KickDevice(ctx context.Context, req *licensev1.KickDeviceRequest) (*licensev1.KickDeviceResponse, error) {
+	return s.admin.KickDevice(ctx, req)
+}
+
+// ShowTrial returns a fingerprint's trial ledger.
+func (s *Service) ShowTrial(ctx context.Context, req *licensev1.ShowTrialRequest) (*licensev1.ShowTrialResponse, error) {
+	return s.admin.ShowTrial(ctx, req)
+}
+
+// ResetTrial deletes one trial ledger row (manual reset channel).
+func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialRequest) (*licensev1.ResetTrialResponse, error) {
+	return s.admin.ResetTrial(ctx, req)
+}
+
+// ShowPubKey exposes the signing public key(s) for client pinning.
+func (s *Service) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
+	return s.admin.ShowPubKey(ctx, req)
 }
 
 // Resource resolve helpers (resolveDB / resolveRedis)
