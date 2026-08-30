@@ -27,6 +27,7 @@ import (
 
 	licensev1 "github.com/servekit/license-service/gen/license/v1"
 	"github.com/servekit/license-service/internal/jobs"
+	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/version"
 
 	"github.com/servekit/license-service/pkg/config"
@@ -38,15 +39,18 @@ import (
 
 // Service holds license-service business state.
 //
-// Resource fields (db, redis, gid) are convenience references kept on the root
+// Resource fields (db, redis) are convenience references kept on the root
 // Service — they point at the same instances tracked by mgr and injected into
-// subpackages. Each domain lives in its own subpackage field
-// (license *license.Service); subpackages do NOT reference this struct.
+// subpackages. Each domain lives in its own subpackage field; subpackages do
+// NOT reference this struct.
 type Service struct {
 	cfg *config.Config
 	mgr *lifecycle.Manager
 	db  *gorm.DB
 	rdb *redis.Client
+
+	// activation owns the client-facing activation domain (A1–A12).
+	activation *activation.Service
 
 	// startedAt is set once in New; Ping returns it for uptime.
 	startedAt int64
@@ -81,6 +85,19 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		return nil, err
 	}
 
+	signer, err := resolveSigner(cfg)
+	if err != nil {
+		if cerr := mgr.Stop(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
+		}
+		return nil, err
+	}
+
+	trialDays := int32(14)
+	if cfg.Trial != nil && cfg.Trial.Days > 0 {
+		trialDays = cfg.Trial.Days
+	}
+
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
 	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
@@ -89,6 +106,8 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		mgr: mgr,
 		db:  db,
 		rdb: rdb,
+
+		activation: activation.New(db, rdb, signer, trialDays),
 
 		startedAt: time.Now().UnixMilli(),
 	}
@@ -126,6 +145,23 @@ func (s *Service) Ping(_ context.Context) (*licensev1.Pong, error) {
 		Now:       time.Now().UnixMilli(),
 		StartedAt: s.startedAt,
 	}, nil
+}
+
+// --- facade methods (one per RPC, delegate to subpackage) ---
+
+// Activate delegates to the activation domain (A1–A12 converger).
+func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
+	return s.activation.Activate(ctx, req)
+}
+
+// Deactivate delegates to the activation domain (idempotent slot release).
+func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
+	return s.activation.Deactivate(ctx, req)
+}
+
+// TrialStart delegates to the activation domain (keyless trial ledger).
+func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
+	return s.activation.TrialStart(ctx, req)
 }
 
 // Resource resolve helpers (resolveDB / resolveRedis)

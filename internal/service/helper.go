@@ -22,6 +22,8 @@ import (
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/lifecycle"
 	"github.com/servekit/go-common/redisx"
+
+	"github.com/servekit/license-service/internal/service/cert"
 )
 
 // resolveDB returns the DB to use. If injected via option.WithDB, ownership
@@ -62,4 +64,19 @@ func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager)
 		}
 	}))
 	return rdb, nil
+}
+
+// resolveSigner builds the Ed25519 cert signer from cfg. The signing seed is
+// REQUIRED — a license service without key material cannot issue creds, so
+// an empty seed is a startup error (fail-fast beats signing with nothing).
+func resolveSigner(cfg *config.Config) (*cert.Signer, error) {
+	sc := cfg.Signing
+	if sc == nil || sc.Seed == "" {
+		return nil, fmt.Errorf("signing.seed is required (set LICENSE_SIGNING_SEED)")
+	}
+	signer, err := cert.NewSigner(sc.Seed, sc.SeedSecondary, sc.KeyID)
+	if err != nil {
+		return nil, fmt.Errorf("signer: %w", err)
+	}
+	return signer, nil
 }

@@ -55,3 +55,20 @@ func (h *Handler) Stop() error { return h.svc.Stop() }
 func (h *Handler) Ping(ctx context.Context, _ *emptypb.Empty) (*licensev1.Pong, error) {
 	return h.svc.Ping(ctx)
 }
+
+// Activate is the idempotent client converger (first activation, heartbeat,
+// fingerprint rebind, refresh, evict-retry).
+func (h *Handler) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
+	return h.svc.Activate(ctx, req)
+}
+
+// Deactivate releases the caller's own slot; always 200 (released=false when
+// never in a slot).
+func (h *Handler) Deactivate(ctx context.Context, req *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
+	return h.svc.Deactivate(ctx, req)
+}
+
+// TrialStart starts or resumes a keyless trial (fingerprint-anchored).
+func (h *Handler) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
+	return h.svc.TrialStart(ctx, req)
+}
