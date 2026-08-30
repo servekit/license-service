@@ -91,7 +91,7 @@ func NewSigner(seedHex, secondaryHex, keyID string) (*Signer, error) {
 // PublicKeyB64 returns the default key's public half, base64 (standard
 // alphabet) — the value operators pin into the client build.
 func (s *Signer) PublicKeyB64() string {
-	return base64.StdEncoding.EncodeToString(s.priv.Public().(ed25519.PublicKey))
+	return base64.StdEncoding.EncodeToString(pubOf(s.priv))
 }
 
 // SecondaryPublicKeyB64 returns the named key's public half, or "" when no
@@ -100,7 +100,17 @@ func (s *Signer) SecondaryPublicKeyB64() string {
 	if s.secondary == nil {
 		return ""
 	}
-	return base64.StdEncoding.EncodeToString(s.secondary.Public().(ed25519.PublicKey))
+	return base64.StdEncoding.EncodeToString(pubOf(s.secondary))
+}
+
+// pubOf derives the public half of an ed25519 private key. The conversion
+// cannot fail for a well-formed key (seedFromHex validated the length).
+func pubOf(k ed25519.PrivateKey) ed25519.PublicKey {
+	pub, ok := k.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil
+	}
+	return pub
 }
 
 // KeyID returns the named-key identifier, or "" when signing with the
@@ -114,7 +124,7 @@ func (s *Signer) Ready() bool { return len(s.priv) == ed25519.PrivateKeySize }
 // key follows p.SigningKeyID: nil signs with the default key; a non-nil id
 // must match the configured named key (fail-closed — an unresolvable kid is
 // never downgraded to the default key).
-func (s *Signer) Sign(p *Payload) (payload string, signatureB64 string, err error) {
+func (s *Signer) Sign(p *Payload) (payload, signatureB64 string, err error) {
 	key := s.priv
 	if p.SigningKeyID != nil {
 		if s.secondary == nil || *p.SigningKeyID != s.keyID {

@@ -253,7 +253,7 @@ func UnmarshalCanonical(data []byte) (*Payload, error) {
 // parseValue parses one JSON value at the head of data, returning the value
 // and the remainder. Objects become map[string]any regardless of member
 // order; this parser only feeds UnmarshalCanonical for round-trip tests.
-func parseValue(data []byte) (any, []byte, error) {
+func parseValue(data []byte) (val any, rest []byte, err error) {
 	data = skipWS(data)
 	if len(data) == 0 {
 		return nil, nil, fmt.Errorf("unexpected end of JSON")
@@ -331,7 +331,7 @@ func skipWS(data []byte) []byte {
 }
 
 // parseString parses a JSON string (with unescaping) at the head of data.
-func parseString(data []byte) (string, []byte, error) {
+func parseString(data []byte) (s string, rest []byte, err error) {
 	data = skipWS(data)
 	if len(data) == 0 || data[0] != '"' {
 		return "", nil, fmt.Errorf("expected string")
