@@ -9,13 +9,18 @@ import (
 
 // Client is a gRPC client for license-service.
 //
-// Embeds licensev1.LicenseServiceClient so callers can invoke RPCs directly:
+// Embeds both service clients so callers can invoke RPCs directly:
 //
-//	c, _ := pkg.NewClient("localhost:9000")
-//	license, _ := c.GetLicense(ctx, &licensev1.GetLicenseRequest{Id: 1})
+//	c, _ := pkg.NewClient("localhost:19096")
+//	resp, _ := c.Activate(ctx, &licensev1.ActivateRequest{...})
+//	pub, _ := c.ShowPubKey(authCtx, &licensev1.ShowPubKeyRequest{})
+//
+// Admin RPCs additionally require `authorization: Bearer <token>` metadata
+// (see interceptor.AdminAuth).
 type Client struct {
 	conn *grpc.ClientConn
 	licensev1.LicenseServiceClient
+	licensev1.LicenseAdminServiceClient
 }
 
 // NewClient dials license-service at addr using insecure credentials by default.
@@ -31,8 +36,9 @@ func NewClient(addr string, opts ...grpc.DialOption) (*Client, error) {
 	}
 
 	return &Client{
-		conn:                 conn,
-		LicenseServiceClient: licensev1.NewLicenseServiceClient(conn),
+		conn:                      conn,
+		LicenseServiceClient:      licensev1.NewLicenseServiceClient(conn),
+		LicenseAdminServiceClient: licensev1.NewLicenseAdminServiceClient(conn),
 	}, nil
 }
 

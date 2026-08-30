@@ -144,3 +144,8 @@ func (h *Handler) ResetTrial(ctx context.Context, req *licensev1.ResetTrialReque
 func (h *Handler) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
 	return h.svc.ShowPubKey(ctx, req)
 }
+
+// Health reports DB and signing readiness (GET /healthz).
+func (h *Handler) Health(ctx context.Context, req *licensev1.HealthRequest) (*licensev1.HealthResponse, error) {
+	return h.svc.Health(ctx, req)
+}

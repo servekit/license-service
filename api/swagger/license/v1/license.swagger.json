@@ -709,7 +709,8 @@
         },
         "durationDays": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "0 = unset; CEL below enforces exactly one of duration_days / expires_at."
         },
         "expiresAt": {
           "type": "string",
@@ -796,7 +797,7 @@
         },
         "evictDeviceToken": {
           "type": "string",
-          "description": "Optional: only sent when retrying after a 409 slot_limit response."
+          "description": "Optional: only sent when retrying after a 409 slot_limit response.\noptional gives the field presence so the uuid rule is skipped when the\nclient omits it entirely (protovalidate otherwise rejects \"\" as a uuid)."
         }
       },
       "description": "ActivateRequest drives the idempotent activation converger: first activate,\nheartbeat, fingerprint rebind, post-purchase refresh, or evict-and-retry.\nBoth `key` and `license_key` are accepted (client sends `key`; docs wrote\n`licenseKey`); the server takes the first non-empty one. Key shape is\nvalidated after normalization in the service (BAD_KEY_FORMAT), so the\ntransport only guards length."
@@ -931,7 +932,8 @@
         },
         "durationDays": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "0 = unset (perpetual grants carry no duration); the service enforces the\nexactly-one-of rule against expires_at."
         },
         "expiresAt": {
           "type": "string",

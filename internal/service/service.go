@@ -29,6 +29,7 @@ import (
 	"github.com/servekit/license-service/internal/jobs"
 	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/admin"
+	"github.com/servekit/license-service/internal/service/health"
 	"github.com/servekit/license-service/internal/version"
 
 	"github.com/servekit/license-service/pkg/config"
@@ -54,6 +55,8 @@ type Service struct {
 	activation *activation.Service
 	// admin owns the operator surface (keys, grants, devices, trials).
 	admin *admin.Service
+	// health probes DB and signing readiness.
+	health *health.Service
 
 	// startedAt is set once in New; Ping returns it for uptime.
 	startedAt int64
@@ -112,6 +115,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 
 		activation: activation.New(db, rdb, signer, trialDays),
 		admin:      admin.New(db, signer, trialDays),
+		health:     health.New(db, signer),
 
 		startedAt: time.Now().UnixMilli(),
 	}
@@ -166,6 +170,11 @@ func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateReque
 // TrialStart delegates to the activation domain (keyless trial ledger).
 func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
 	return s.activation.TrialStart(ctx, req)
+}
+
+// Health reports DB and signing readiness; any failure is Unavailable (503).
+func (s *Service) Health(ctx context.Context, req *licensev1.HealthRequest) (*licensev1.HealthResponse, error) {
+	return s.health.Health(ctx, req)
 }
 
 // --- admin facades (one per LicenseAdminService RPC) ---
@@ -249,9 +258,13 @@ func (s *Service) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyReque
 // added inside this method as scheduler.AddFunc calls. Timezone default lives
 // in config.CronConfig's default tag.
 func (s *Service) setupJobs() error {
+	timezone := ""
+	if s.cfg.Cron != nil { // configx always allocates; direct constructors may not
+		timezone = s.cfg.Cron.Timezone
+	}
 	scheduler, err := jobs.New(&jobs.Deps{
 		Config: &cronx.Config{
-			Timezone:      s.cfg.Cron.Timezone,
+			Timezone:      timezone,
 			OverlapPolicy: "skip",
 		},
 	})
