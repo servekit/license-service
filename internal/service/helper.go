@@ -10,17 +10,18 @@ package service
 
 import (
 	"fmt"
-	
+	"log/slog"
+
 	"github.com/redis/go-redis/v9"
-	
+
 	"gorm.io/gorm"
-	
+
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/option"
 
 	"github.com/servekit/go-common/dbx"
-	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/lifecycle"
+	"github.com/servekit/go-common/redisx"
 )
 
 // resolveDB returns the DB to use. If injected via option.WithDB, ownership
@@ -36,7 +37,9 @@ func resolveDB(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*
 	}
 	mgr.AddStopper("db", lifecycle.StopFunc(func() {
 		if sqlDB, e := db.DB(); e == nil && sqlDB != nil {
-			_ = sqlDB.Close()
+			if cerr := sqlDB.Close(); cerr != nil {
+				slog.Warn("close db", "error", cerr)
+			}
 		}
 	}))
 	return db, nil
@@ -53,7 +56,10 @@ func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager)
 	if err != nil {
 		return nil, fmt.Errorf("redis: %w", err)
 	}
-	mgr.AddStopper("redis", lifecycle.StopFunc(func() { _ = rdb.Close() }))
+	mgr.AddStopper("redis", lifecycle.StopFunc(func() {
+		if cerr := rdb.Close(); cerr != nil {
+			slog.Warn("close redis", "error", cerr)
+		}
+	}))
 	return rdb, nil
 }
-

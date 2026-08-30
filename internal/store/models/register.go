@@ -1,3 +1,4 @@
+// Package models defines the GORM table structs for license-service.
 package models
 
 import (
@@ -14,9 +15,7 @@ import (
 // as pkg.Migrate) consumes this slice — both the `migrate` subcommand and
 // embedded module users go through it.
 func AllModels() []any {
-	return []any{
-		
-	}
+	return []any{}
 }
 
 // gormGenConfig configures `gorm gen` code generation. Discovered via AST

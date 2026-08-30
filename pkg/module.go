@@ -1,12 +1,13 @@
 package pkg
 
 import (
+	"gorm.io/gorm"
+
 	licensev1 "github.com/servekit/license-service/gen/license/v1"
 	"github.com/servekit/license-service/internal/service"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/handler"
 	"github.com/servekit/license-service/pkg/option"
-	"gorm.io/gorm"
 )
 
 // Handler is the in-process entry point. Callers invoke proto-typed RPC
@@ -53,4 +54,3 @@ func NewModule(cfg *config.Config, opts ...option.Option) (*Handler, error) {
 func Migrate(db *gorm.DB) error {
 	return handler.Migrate(db)
 }
-

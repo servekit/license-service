@@ -8,9 +8,8 @@ package config
 import (
 	"github.com/servekit/go-common/configx"
 	"github.com/servekit/go-common/dbx"
-	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/logging"
-	
+	"github.com/servekit/go-common/redisx"
 )
 
 // serviceName identifies this binary in config file lookup (/etc/<name>) and
@@ -86,7 +85,7 @@ type CronConfig struct {
 	// Timezone for cron expression evaluation. Defaults to Asia/Shanghai.
 	Timezone string `default:"Asia/Shanghai"`
 }
-	
+
 // Load reads config from the standard configx locations:
 //   - /etc/license-service/config.yaml
 //   - ./config.yaml

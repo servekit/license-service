@@ -31,7 +31,7 @@ func NewClient(addr string, opts ...grpc.DialOption) (*Client, error) {
 	}
 
 	return &Client{
-		conn:              conn,
+		conn:                 conn,
 		LicenseServiceClient: licensev1.NewLicenseServiceClient(conn),
 	}, nil
 }

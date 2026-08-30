@@ -20,14 +20,15 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	
+
 	"github.com/redis/go-redis/v9"
-	
+
 	"gorm.io/gorm"
+
 	licensev1 "github.com/servekit/license-service/gen/license/v1"
 	"github.com/servekit/license-service/internal/jobs"
 	"github.com/servekit/license-service/internal/version"
-	
+
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/option"
 
@@ -44,9 +45,8 @@ import (
 type Service struct {
 	cfg *config.Config
 	mgr *lifecycle.Manager
-	db *gorm.DB
-	redis *redis.Client
-	
+	db  *gorm.DB
+	rdb *redis.Client
 
 	// startedAt is set once in New; Ping returns it for uptime.
 	startedAt int64
@@ -64,7 +64,7 @@ type Service struct {
 func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	o := option.Apply(opts...)
 	mgr := lifecycle.NewManager()
-	
+
 	db, err := resolveDB(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
@@ -72,24 +72,24 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		}
 		return nil, err
 	}
-	
-	redis, err := resolveRedis(&o, cfg, mgr)
+
+	rdb, err := resolveRedis(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
 		}
 		return nil, err
 	}
-	
+
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
 	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
 	svc := &Service{
 		cfg: cfg,
 		mgr: mgr,
-		db: db,
-		redis: redis,
-		
+		db:  db,
+		rdb: rdb,
+
 		startedAt: time.Now().UnixMilli(),
 	}
 
@@ -113,7 +113,7 @@ func (s *Service) Stop() error { return s.mgr.Stop() }
 // least one HTTP endpoint and pkg/server.go can always register the handler.
 // Returns only public, non-sensitive info — never internal addresses, env,
 // secrets, or dependency topology.
-func (s *Service) Ping(ctx context.Context) (*licensev1.Pong, error) {
+func (s *Service) Ping(_ context.Context) (*licensev1.Pong, error) {
 	v := version.Get()
 	return &licensev1.Pong{
 		Service:   "license-service",
@@ -127,7 +127,7 @@ func (s *Service) Ping(ctx context.Context) (*licensev1.Pong, error) {
 		StartedAt: s.startedAt,
 	}, nil
 }
-	
+
 // Resource resolve helpers (resolveDB / resolveRedis)
 // live in helper.go — extracted from this file to keep service.go focused on
 // the Service struct, New/Start/Stop/Ping, and the facade delegations.

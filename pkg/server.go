@@ -18,6 +18,7 @@ import (
 	"github.com/servekit/license-service/internal/service"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/handler"
+	"github.com/servekit/license-service/pkg/interceptor"
 	"github.com/servekit/license-service/pkg/option"
 )
 
@@ -50,13 +51,18 @@ func WithServiceOptions(opts ...option.Option) ServerOption {
 // NewServer constructs a Server with all dependencies wired.
 //
 // The gRPC server runs with three interceptors in order:
-//   - grpcx.ErrorInterceptor: maps xerr-wrapped service errors to gRPC status
-//     codes (404 → NotFound, 400 → InvalidArgument, etc.)
+//   - interceptor.Error: maps xerr-wrapped service errors to gRPC status
+//     codes ("REASON: message" preserved) and promotes xcodes.Detailed
+//     proto details (SlotLimitInfo / RetryAfterInfo) into the status
 //   - protovalidate.UnaryServerInterceptor: enforces (buf.validate.field)
 //     rules declared in license.proto
+//   - interceptor.AdminAuth: Bearer-token gate on LicenseAdminService RPCs
+//     (fail-closed when ADMIN_TOKEN is unset)
 //
-// The HTTP gateway auto-registers via licensev1.RegisterLicenseServiceHandlerFromEndpoint
-// when cfg.Server.HTTPAddr is non-empty.
+// license-service is gRPC-only: registerGW is nil and GatewayAddr stays
+// empty. The client-facing HTTP surface is served by a future standalone
+// gateway that routes per the google.api.http annotations in license.proto
+// (see docs/wire-contract.md); :18086 is reserved for it.
 func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 	var so serverOptions
 	for _, opt := range opts {
@@ -82,10 +88,12 @@ func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 		},
 		func(gs *grpc.Server) {
 			licensev1.RegisterLicenseServiceServer(gs, hdl)
+			licensev1.RegisterLicenseAdminServiceServer(gs, hdl)
 		},
-		licensev1.RegisterLicenseServiceHandlerFromEndpoint,
-		grpcx.ErrorInterceptor,
+		nil,
+		interceptor.Error,
 		protovalidate_middleware.UnaryServerInterceptor(validator),
+		interceptor.AdminAuth(cfg.AdminToken),
 	)
 
 	return &Server{grpcSrv: grpcSrv, hdl: hdl}, nil
