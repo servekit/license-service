@@ -78,7 +78,7 @@ func resolveKey(ctx context.Context, tx *gorm.DB, idOrHash string) (*models.Lice
 }
 
 // keyToProto assembles the read-side view (never the plaintext key).
-func (s *Service) keyToProto(ctx context.Context, tx *gorm.DB, k *models.LicenseKey, withDevices bool) (*licensev1.KeyInfo, error) {
+func (*Service) keyToProto(ctx context.Context, tx *gorm.DB, k *models.LicenseKey, withDevices bool) (*licensev1.KeyInfo, error) {
 	info := &licensev1.KeyInfo{
 		LicenseId: k.LicenseID,
 		KeyPrefix: k.KeyPrefix,
