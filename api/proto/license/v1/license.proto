@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package license.v1;
+
+option go_package = "license-service/gen/license/v1;licenseservicev1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "buf/validate/validate.proto";
+
+// Pong is the health-check response — only public, non-sensitive info
+// (service name, build version, status, timestamps). Never include internal
+// addresses, IPs, env vars, secrets, or dependency topology here.
+message Pong {
+  string service = 1;       // service name, e.g. "demo-service"
+  string version = 2;       // semantic version (ldflags; "dev" by default)
+  string git_commit = 3;    // short commit hash (ldflags or VCS-embedded)
+  string git_branch = 4;    // git branch (ldflags)
+  string build_time = 5;    // build time, RFC3339 UTC (ldflags)
+  string go_version = 6;    // Go toolchain version (runtime, not injected)
+  string status = 7;        // "SERVING" when serving normally
+  int64 now = 8;            // server time, Unix millis
+  int64 started_at = 9;     // process start time, Unix millis (client computes uptime)
+}
+
+service LicenseService {
+  rpc Ping(google.protobuf.Empty) returns (Pong) {
+    option (google.api.http) = { get: "/ping" };
+  }
+
+}

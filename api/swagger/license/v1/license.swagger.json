@@ -1,0 +1,116 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "license/v1/license.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "LicenseService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/ping": {
+      "get": {
+        "operationId": "Ping",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Pong"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LicenseService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1Pong": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "title": "service name, e.g. \"demo-service\""
+        },
+        "version": {
+          "type": "string",
+          "title": "semantic version (ldflags; \"dev\" by default)"
+        },
+        "gitCommit": {
+          "type": "string",
+          "title": "short commit hash (ldflags or VCS-embedded)"
+        },
+        "gitBranch": {
+          "type": "string",
+          "title": "git branch (ldflags)"
+        },
+        "buildTime": {
+          "type": "string",
+          "title": "build time, RFC3339 UTC (ldflags)"
+        },
+        "goVersion": {
+          "type": "string",
+          "title": "Go toolchain version (runtime, not injected)"
+        },
+        "status": {
+          "type": "string",
+          "title": "\"SERVING\" when serving normally"
+        },
+        "now": {
+          "type": "string",
+          "format": "int64",
+          "title": "server time, Unix millis"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "int64",
+          "title": "process start time, Unix millis (client computes uptime)"
+        }
+      },
+      "description": "Pong is the health-check response — only public, non-sensitive info\n(service name, build version, status, timestamps). Never include internal\naddresses, IPs, env vars, secrets, or dependency topology here."
+    }
+  }
+}

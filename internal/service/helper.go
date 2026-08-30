@@ -1,0 +1,59 @@
+package service
+
+// This file holds the resource resolve helpers used by service.New. They were
+// extracted from service.go to keep that file focused on the Service struct,
+// New/Start/Stop/Ping, and the RPC facade delegations.
+//
+// Each resolve* returns a resource: an injected one (option.With…) is used
+// as-is with the caller owning its lifecycle; otherwise it is built from cfg
+// and registered with the lifecycle Manager, which starts and stops it.
+
+import (
+	"fmt"
+	
+	"github.com/redis/go-redis/v9"
+	
+	"gorm.io/gorm"
+	
+	"github.com/servekit/license-service/pkg/config"
+	"github.com/servekit/license-service/pkg/option"
+
+	"github.com/servekit/go-common/dbx"
+	"github.com/servekit/go-common/redisx"
+	"github.com/servekit/go-common/lifecycle"
+)
+
+// resolveDB returns the DB to use. If injected via option.WithDB, ownership
+// stays with the caller and nothing is registered with mgr. If created from
+// cfg, a Stopper is registered so mgr.Stop closes the connection pool.
+func resolveDB(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*gorm.DB, error) {
+	if o.DB != nil {
+		return o.DB, nil
+	}
+	db, err := dbx.New(cfg.Database)
+	if err != nil {
+		return nil, fmt.Errorf("database: %w", err)
+	}
+	mgr.AddStopper("db", lifecycle.StopFunc(func() {
+		if sqlDB, e := db.DB(); e == nil && sqlDB != nil {
+			_ = sqlDB.Close()
+		}
+	}))
+	return db, nil
+}
+
+// resolveRedis returns the Redis client to use. If injected via option, ownership
+// stays with the caller. If created from cfg, a Stopper is registered so mgr.Stop
+// closes the client.
+func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*redis.Client, error) {
+	if o.Redis != nil {
+		return o.Redis, nil
+	}
+	rdb, err := redisx.New(cfg.Redis)
+	if err != nil {
+		return nil, fmt.Errorf("redis: %w", err)
+	}
+	mgr.AddStopper("redis", lifecycle.StopFunc(func() { _ = rdb.Close() }))
+	return rdb, nil
+}
+

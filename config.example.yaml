@@ -1,0 +1,53 @@
+# Structure-only config template. Every value is a ${VAR} placeholder expanded
+# by configx (WithExpandEnv) from the process environment at startup; see
+# .env.example for the actual values. To override a value, set the env var in
+# .env (local) or the container/deployment env — never hard-code values here.
+#
+# configx loads ./config.yaml (NOT this file). `make run` copies this template
+# to config.yaml automatically when missing; for docker, the renderer copies it
+# into the image as /app/config.yaml.
+
+server:
+  grpc_addr: ${LICENSE_SERVICE_SERVER_GRPC_ADDR}
+  http_addr: ${LICENSE_SERVICE_SERVER_HTTP_ADDR}
+
+database:
+  host: ${LICENSE_SERVICE_DATABASE_HOST}
+  port: ${LICENSE_SERVICE_DATABASE_PORT}
+  user: ${LICENSE_SERVICE_DATABASE_USER}
+  password: ${LICENSE_SERVICE_DATABASE_PASSWORD}
+  dbname: ${LICENSE_SERVICE_DATABASE_DBNAME}
+  sslmode: ${LICENSE_SERVICE_DATABASE_SSLMODE}
+  max_open_conns: ${LICENSE_SERVICE_DATABASE_MAX_OPEN_CONNS}
+  max_idle_conns: ${LICENSE_SERVICE_DATABASE_MAX_IDLE_CONNS}
+  conn_max_lifetime: ${LICENSE_SERVICE_DATABASE_CONN_MAX_LIFETIME}
+
+redis:
+  addr: ${LICENSE_SERVICE_REDIS_ADDR}
+  username: ${LICENSE_SERVICE_REDIS_USERNAME}
+  password: ${LICENSE_SERVICE_REDIS_PASSWORD}
+  db: ${LICENSE_SERVICE_REDIS_DB}
+
+# Ed25519 cert-signing keys (design doc §9). The primary seed is REQUIRED —
+# losing it means every issued cert can never be re-signed. Keep an offline
+# copy (password manager / paper). Never commit real seeds.
+signing:
+  seed: ${LICENSE_SIGNING_SEED}
+  # Rotation transition only: secondary named key (unused when key_id empty).
+  seed_secondary: ${LICENSE_SIGNING_SEED_SECONDARY}
+  key_id: ${LICENSE_SIGNING_KEY_ID}
+
+# Bearer token for all LicenseAdminService RPCs. Empty = admin RPCs rejected
+# (fail-closed). Rotate by changing the env var and restarting.
+admin_token: ${ADMIN_TOKEN}
+
+# Keyless trial accounting.
+trial:
+  days: ${TRIAL_DAYS}
+
+cron:
+  timezone: ${LICENSE_SERVICE_CRON_TIMEZONE}
+
+log:
+  level: ${LICENSE_SERVICE_LOG_LEVEL}
+  format: ${LICENSE_SERVICE_LOG_FORMAT}
