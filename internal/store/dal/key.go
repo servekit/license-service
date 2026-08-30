@@ -112,7 +112,7 @@ func UpdateKeySlots(ctx context.Context, tx *gorm.DB, keyHash string, maxSlots i
 // Conditions stay on generated helpers; the map arm exists because the
 // generic Update(ctx, name, value) is single-column and field.Time cannot
 // SET NULL (documented exception).
-func SetKeyStatus(ctx context.Context, tx *gorm.DB, keyHash string, status int32, revokedAt *time.Time) error {
+func SetKeyStatus(_ context.Context, tx *gorm.DB, keyHash string, status int32, revokedAt *time.Time) error {
 	res := tx.Model(&models.LicenseKey{}).
 		Where(generated.LicenseKey.KeyHash.Eq(keyHash)).
 		Updates(map[string]any{
