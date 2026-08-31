@@ -42,7 +42,7 @@ admin 面（/v1/admin/*）与 gRPC 端口只在内网可达，Bearer <ADMIN_TOKE
 | Unauthenticated | 401 | `key_not_found` | key_hash 查无 |
 | PermissionDenied | 403 | `key_revoked` | status=revoked（含在槽设备心跳） |
 | AlreadyExists | 409 | `slot_limit` | 槽满且未带有效 evict |
-| ResourceExhausted | 429 | `rate_limited` | 60s 窗口超限 |
+| ResourceExhausted | 429 | `rate_limited` | 窗口配额超限（每 (身份, device_token) 每 `rate_limit.window` 最多 `rate_limit.max` 次，默认 10/60s） |
 | Unavailable | 503 | `service_unavailable` | healthz 任一检查失败 |
 
 ## 4. 错误体形状（网关必须还原）

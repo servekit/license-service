@@ -71,17 +71,20 @@ type TrialConfig struct {
 	Days int32 `default:"14"`
 }
 
-// RateLimitConfig configures the per-identity fixed-window limiter:
-// one request per (key_hash or fingerprint_id, device_token) per Window.
-// This is a factual guardrail over the 24h heartbeat rhythm, not an
-// anti-DDoS boundary.
+// RateLimitConfig configures the per-identity fixed-window limiter
+// (go-common ratelimit): at most Max requests per Window for each
+// (key_hash or fingerprint_id, device_token) pair. The purpose is
+// anti-abuse (blocking hammering), deliberately generous for legitimate
+// flows — the client heartbeat is 24h and never retries.
 type RateLimitConfig struct {
-	// KeyPrefix is the Redis key prefix for limiter keys, following the
-	// go-common convention <module>:<purpose>:.
-	KeyPrefix string `default:"license:rate:"`
+	// KeyPrefix is the Redis key prefix for limiter keys (go-common
+	// convention <module>:<purpose>; the package appends ":<purpose>").
+	KeyPrefix string `default:"license:rate"`
 	// Window is the fixed-window duration. The Retry-After hint sent to
 	// clients derives from it.
 	Window time.Duration `default:"60s"`
+	// Max is the request quota per window per (identity, device_token).
+	Max int64 `default:"10"`
 }
 
 // ServerConfig holds gRPC and HTTP server addresses.

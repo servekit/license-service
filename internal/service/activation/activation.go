@@ -44,6 +44,9 @@ type Options struct {
 	RateKeyPrefix string
 	// RateWindow is the fixed-window duration of the limiter.
 	RateWindow time.Duration
+	// RateMax is the per-window request quota for each
+	// (identity, device_token) pair. <= 0 falls back to defaultRateMax.
+	RateMax int64
 }
 
 // New constructs the activation domain.
@@ -53,7 +56,7 @@ func New(db *gorm.DB, rdb *redis.Client, signer *cert.Signer, opts Options) *Ser
 		rdb:       rdb,
 		signer:    signer,
 		trialDays: opts.TrialDays,
-		limiter:   newRateLimiter(rdb, opts.RateKeyPrefix, opts.RateWindow),
+		limiter:   newRateLimiter(rdb, opts.RateKeyPrefix, opts.RateWindow, opts.RateMax),
 	}
 }
 
@@ -79,8 +82,8 @@ func normalizeRequestKey(a, b string) (hash string, err error) {
 // normalize → hash → rate limit → key lookup (401/403) → evict delete →
 // same-transaction slot judgment (FOR UPDATE serialize) → assemble
 // entitlements ∪ trial ledger → sign with fresh certId/issuedAt → 200.
-// A slot-limit rejection refunds the rate-limit unit so the user can retry
-// immediately after choosing a device to evict.
+// The window quota is generous enough that the evict-retry after a 409
+// stays inside it (see rateLimiter).
 func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
 	keyHash, err := normalizeRequestKey(req.GetKey(), req.GetLicenseKey())
 	if err != nil {
@@ -89,8 +92,7 @@ func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) 
 	fingerprint := req.GetFingerprintId()
 	token := req.GetDeviceToken()
 
-	refund, err := s.limiter.check(ctx, "key:"+keyHash, token)
-	if err != nil {
+	if err := s.limiter.allow(ctx, purposeActivate, keyHash+":"+token); err != nil {
 		return nil, err
 	}
 
@@ -129,10 +131,6 @@ func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) 
 		return nil
 	})
 	if txErr != nil {
-		// 409 refunds the rate-limit unit (design doc §7.5).
-		if errors.Is(txErr, xcodes.ErrSlotLimit.New()) && refund != nil {
-			refund()
-		}
 		return nil, txErr
 	}
 
@@ -213,12 +211,9 @@ func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateReque
 	}
 	token := req.GetDeviceToken()
 
-	refund, err := s.limiter.check(ctx, "key:"+keyHash, token)
-	if err != nil {
+	if err := s.limiter.allow(ctx, purposeActivate, keyHash+":"+token); err != nil {
 		return nil, err
 	}
-	// Deactivate never returns 409; consume the unit unconditionally.
-	_ = refund
 
 	var released bool
 	err = s.db.Transaction(func(tx *gorm.DB) error {
@@ -262,8 +257,7 @@ func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartReque
 		return nil, err
 	}
 
-	refund, err := s.limiter.check(ctx, "fp:"+fingerprint, token)
-	if err != nil {
+	if err := s.limiter.allow(ctx, purposeTrial, fingerprint+":"+token); err != nil {
 		return nil, err
 	}
 
@@ -338,9 +332,6 @@ func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartReque
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, xcodes.ErrSlotLimit.New()) && refund != nil {
-			refund()
-		}
 		return nil, err
 	}
 

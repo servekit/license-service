@@ -47,11 +47,13 @@ admin_token: ${ADMIN_TOKEN}
 trial:
   days: ${TRIAL_DAYS}
 
-# Per-identity fixed-window rate limiter (one request per
-# (key_hash or fingerprint_id, device_token) per window).
+# Per-identity fixed-window rate limiter (go-common ratelimit): at most
+# `max` requests per window per (key_hash or fingerprint_id, device_token).
+# Anti-abuse guardrail — generous for legit flows (heartbeat is 24h).
 rate_limit:
   key_prefix: ${LICENSE_SERVICE_RATE_LIMIT_KEY_PREFIX}
   window: ${LICENSE_SERVICE_RATE_LIMIT_WINDOW}
+  max: ${LICENSE_SERVICE_RATE_LIMIT_MAX}
 
 cron:
   timezone: ${LICENSE_SERVICE_CRON_TIMEZONE}

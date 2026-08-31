@@ -61,7 +61,7 @@ scaffold 已按生成时的能力开关接好；这里说的是**生成之后**�
 - **凭证 payload 必须 canonical**：`internal/service/cert` 的序列化器是被客户端逐字节互证的（golden 向量锁死）；任何字段增删都要跑 golden。
 - **永不复用 issuedAt**：每次响应用当前时间重签、certId 新 UUID——客户端单调水位依赖此性质。
 - **perpetual `expiresAt` 恒 null、subscription/trial 恒非 null**：双侧（admin 授予 + activation）都要守住。
-- **409 退还限速额度**：SLOT_LIMIT 路径必须 `refund()`（客户端选完设备要能立即重试）。
+- **限流是防滥用配额，不是精确节拍**：go-common `ratelimit` 固定窗口，每 (身份, device_token) 每窗口 `rate_limit.max` 次（默认 10/60s）。409 消耗配额是**有意的**——配额已覆盖 evict 重试；不要重新引入"60s 一次 + 退还"的单发语义（易误杀合法心跳）。
 - **试用必须并入凭证**：key 凭证与试用凭证在客户端单槽存储下会互相冲掉——`signCert` 的并集逻辑不能拆。
 - **日志脱敏**：明文 key / fingerprint_id / remote_addr / payload / signature 绝不进日志；排障用 licenseId + device_token + certId。trial 审计目标用 `sha256(fp)[:16]`。
 - **DB 无软删除是有意的**（spec §4 硬行语义：槽位释放/试用重置/upsert 唯一性），不要"补上" DeletedAt；keys 的吊销是 Status 软状态。

@@ -72,6 +72,8 @@ func startStack(t *testing.T) *stack {
 		Signing:    &config.SigningConfig{Seed: testSeed},
 		AdminToken: adminToken,
 		Trial:      &config.TrialConfig{Days: 14},
+		// Quota 1 pins the 429 path within a single test flow.
+		RateLimit: &config.RateLimitConfig{KeyPrefix: "itest:rate", Window: time.Minute, Max: 1},
 	}
 
 	server, err := pkg.NewServer(cfg,

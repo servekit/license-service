@@ -107,6 +107,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	if cfg.RateLimit != nil {
 		actOpts.RateKeyPrefix = cfg.RateLimit.KeyPrefix
 		actOpts.RateWindow = cfg.RateLimit.Window
+		actOpts.RateMax = cfg.RateLimit.Max
 	}
 
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers

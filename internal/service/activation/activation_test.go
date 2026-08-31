@@ -230,9 +230,9 @@ func TestA5_SlotLimitWithRoster(t *testing.T) {
 	require.True(t, found, "SLOT_LIMIT must carry SlotLimitInfo for the device chooser")
 }
 
-// A6 + refund: evict-retry succeeds immediately after the 409 — the rate
-// limit unit was refunded, so no 429 intervenes.
-func TestA6_EvictRetryAndRateRefund(t *testing.T) {
+// A6: evict-retry succeeds immediately after the 409 — the window quota
+// (default 10) absorbs the retry without any refund mechanism.
+func TestA6_EvictRetryWithinQuota(t *testing.T) {
 	h := newHarness(t, 14)
 	h.seedKey(t, keyA, 3)
 	for i := 1; i <= 3; i++ {
@@ -241,12 +241,12 @@ func TestA6_EvictRetryAndRateRefund(t *testing.T) {
 		h.flush(t)
 	}
 
-	// 409 first (this consumes + must refund a rate unit)…
+	// 409 first (consumes one quota unit)…
 	_, err := h.svc.Activate(context.Background(), actReq(keyA, fp1, tok(9), ""))
 	require.ErrorIs(t, err, xcodes.ErrSlotLimit.New())
 
-	// …then the immediate retry with an evict target succeeds — without the
-	// refund this would be RATE_LIMITED.
+	// …then the immediate retry with an evict target succeeds — it stays
+	// inside the window quota.
 	resp, err := h.svc.Activate(context.Background(), actReq(keyA, fp1, tok(9), tok(1)))
 	require.NoError(t, err)
 	require.EqualValues(t, 3, resp.GetSlots().GetUsed())
@@ -345,10 +345,10 @@ func TestA10_KeyNotFound(t *testing.T) {
 	require.ErrorIs(t, err, xcodes.ErrKeyNotFound.New())
 }
 
-// A11: rate limit — same (key, token) within the window is denied with a
-// RetryAfterInfo detail.
+// A11: rate limit — exhausting the per-window quota is denied with a
+// RetryAfterInfo detail (harness pins Max=1 so the second call exhausts it).
 func TestA11_RateLimited(t *testing.T) {
-	h := newHarness(t, 14)
+	h := newHarnessOpts(t, Options{TrialDays: 14, RateMax: 1})
 	h.seedKey(t, keyA, 3)
 
 	_, err := h.svc.Activate(context.Background(), actReq(keyA, fp1, tok(1), ""))
@@ -643,25 +643,31 @@ func TestKeyMaterial(t *testing.T) {
 }
 
 // Rate-limit configuration takes effect: custom key prefix lands in Redis,
-// the window drives both the Retry-After hint and the block release.
+// the quota and window drive denial, TTL and Retry-After derive from the
+// window. Keys follow go-common ratelimit's shape
+// <prefix>:<purpose>:{<target>}:<window_seconds>.
 func TestRateLimitConfigurable(t *testing.T) {
 	h := newHarnessOpts(t, Options{
 		TrialDays:     14,
-		RateKeyPrefix: "lic:rl:test:",
+		RateKeyPrefix: "lic:rl",
 		RateWindow:    time.Second,
+		RateMax:       2,
 	})
 	ctx := context.Background()
 	h.seedKey(t, keyA, 3)
 
 	_, err := h.svc.Activate(ctx, actReq(keyA, fp1, tok(1), ""))
 	require.NoError(t, err)
+	_, err = h.svc.Activate(ctx, actReq(keyA, fp1, tok(1), ""))
+	require.NoError(t, err, "second request stays inside the Max=2 quota")
 
 	// Custom prefix visible on the redis key; default prefix unused.
-	keys := h.rdb.Keys(ctx, "lic:rl:test:*").Val()
+	keys := h.rdb.Keys(ctx, "lic:rl:*").Val()
 	require.Len(t, keys, 1, "limiter key must use the configured prefix")
+	require.Contains(t, keys[0], "activate:{", "go-common ratelimit key shape")
 	require.Empty(t, h.rdb.Keys(ctx, "license:rate:*").Val(), "default prefix must not be used")
 
-	// Second hit within the window is denied with the window-derived hint.
+	// Third hit exhausts the quota; the hint derives from the window.
 	_, err = h.svc.Activate(ctx, actReq(keyA, fp1, tok(1), ""))
 	require.ErrorIs(t, err, xcodes.ErrRateLimited.New())
 	var det *xcodes.Detailed
@@ -680,4 +686,8 @@ func TestRateLimitConfigurable(t *testing.T) {
 	// the TTL value is asserted instead of a wall-clock sleep).
 	ttl := h.rdb.TTL(ctx, keys[0]).Val()
 	require.Equal(t, time.Second, ttl, "key TTL must equal the configured window")
+
+	// A different device_token is a different quota bucket.
+	_, err = h.svc.Activate(ctx, actReq(keyA, fp1, tok(2), ""))
+	require.NoError(t, err, "quota is per (identity, device_token)")
 }
