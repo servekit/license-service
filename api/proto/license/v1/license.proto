@@ -459,21 +459,21 @@ message ResetTrialResponse {
 
 message ShowPubKeyRequest {}
 
-// SigningKeyInfo describes one named signing key (rotation / per-build
-// shard keys clients pin into their key table).
+// SigningKeyInfo describes one signing key (single-key deployments list one;
+// rotation / per-build shards list more).
 message SigningKeyInfo {
   string key_id = 1;
   string public_key_b64 = 2;
 }
 
 message ShowPubKeyResponse {
-  // base64 of the 32-byte Ed25519 public key derived from the default seed
-  // (kid null — the key every shipped client pins as its fallback).
-  string public_key_b64 = 1;
-  reserved 2, 3;
-  reserved "key_id", "secondary_public_key_b64";
-  // All configured named keys, sorted by key_id.
-  repeated SigningKeyInfo named_keys = 4;
+  reserved 1, 2, 3;
+  reserved "public_key_b64", "key_id", "secondary_public_key_b64";
+  // The kid currently signing new payloads.
+  string active_key_id = 4;
+  // All configured keys, sorted by key_id — pin these into client key
+  // tables.
+  repeated SigningKeyInfo keys = 5;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

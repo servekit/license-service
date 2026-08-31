@@ -2727,8 +2727,8 @@ func (*ShowPubKeyRequest) Descriptor() ([]byte, []int) {
 	return file_license_v1_license_proto_rawDescGZIP(), []int{44}
 }
 
-// SigningKeyInfo describes one named signing key (rotation / per-build
-// shard keys clients pin into their key table).
+// SigningKeyInfo describes one signing key (single-key deployments list one;
+// rotation / per-build shards list more).
 type SigningKeyInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	KeyId         string                 `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
@@ -2783,11 +2783,11 @@ func (x *SigningKeyInfo) GetPublicKeyB64() string {
 
 type ShowPubKeyResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// base64 of the 32-byte Ed25519 public key derived from the default seed
-	// (kid null — the key every shipped client pins as its fallback).
-	PublicKeyB64 string `protobuf:"bytes,1,opt,name=public_key_b64,json=publicKeyB64,proto3" json:"public_key_b64,omitempty"`
-	// All configured named keys, sorted by key_id.
-	NamedKeys     []*SigningKeyInfo `protobuf:"bytes,4,rep,name=named_keys,json=namedKeys,proto3" json:"named_keys,omitempty"`
+	// The kid currently signing new payloads.
+	ActiveKeyId string `protobuf:"bytes,4,opt,name=active_key_id,json=activeKeyId,proto3" json:"active_key_id,omitempty"`
+	// All configured keys, sorted by key_id — pin these into client key
+	// tables.
+	Keys          []*SigningKeyInfo `protobuf:"bytes,5,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2822,16 +2822,16 @@ func (*ShowPubKeyResponse) Descriptor() ([]byte, []int) {
 	return file_license_v1_license_proto_rawDescGZIP(), []int{46}
 }
 
-func (x *ShowPubKeyResponse) GetPublicKeyB64() string {
+func (x *ShowPubKeyResponse) GetActiveKeyId() string {
 	if x != nil {
-		return x.PublicKeyB64
+		return x.ActiveKeyId
 	}
 	return ""
 }
 
-func (x *ShowPubKeyResponse) GetNamedKeys() []*SigningKeyInfo {
+func (x *ShowPubKeyResponse) GetKeys() []*SigningKeyInfo {
 	if x != nil {
-		return x.NamedKeys
+		return x.Keys
 	}
 	return nil
 }
@@ -3039,11 +3039,10 @@ const file_license_v1_license_proto_rawDesc = "" +
 	"\x11ShowPubKeyRequest\"M\n" +
 	"\x0eSigningKeyInfo\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12$\n" +
-	"\x0epublic_key_b64\x18\x02 \x01(\tR\fpublicKeyB64\"\xa3\x01\n" +
-	"\x12ShowPubKeyResponse\x12$\n" +
-	"\x0epublic_key_b64\x18\x01 \x01(\tR\fpublicKeyB64\x129\n" +
-	"\n" +
-	"named_keys\x18\x04 \x03(\v2\x1a.license.v1.SigningKeyInfoR\tnamedKeysJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x06key_idR\x18secondary_public_key_b64*H\n" +
+	"\x0epublic_key_b64\x18\x02 \x01(\tR\fpublicKeyB64\"\xac\x01\n" +
+	"\x12ShowPubKeyResponse\x12\"\n" +
+	"\ractive_key_id\x18\x04 \x01(\tR\vactiveKeyId\x12.\n" +
+	"\x04keys\x18\x05 \x03(\v2\x1a.license.v1.SigningKeyInfoR\x04keysJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x0epublic_key_b64R\x06key_idR\x18secondary_public_key_b64*H\n" +
 	"\x06Module\x12\x16\n" +
 	"\x12MODULE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10MODULE_DOWNLOADS\x10\x01\x12\x10\n" +
@@ -3195,7 +3194,7 @@ var file_license_v1_license_proto_depIdxs = []int32{
 	0,  // 35: license.v1.ShowTrialRequest.module:type_name -> license.v1.Module
 	42, // 36: license.v1.ShowTrialResponse.trials:type_name -> license.v1.TrialInfo
 	0,  // 37: license.v1.ResetTrialRequest.module:type_name -> license.v1.Module
-	48, // 38: license.v1.ShowPubKeyResponse.named_keys:type_name -> license.v1.SigningKeyInfo
+	48, // 38: license.v1.ShowPubKeyResponse.keys:type_name -> license.v1.SigningKeyInfo
 	51, // 39: license.v1.LicenseService.Ping:input_type -> google.protobuf.Empty
 	4,  // 40: license.v1.LicenseService.Activate:input_type -> license.v1.ActivateRequest
 	8,  // 41: license.v1.LicenseService.Deactivate:input_type -> license.v1.DeactivateRequest

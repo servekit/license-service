@@ -30,18 +30,20 @@ redis:
   password: ${LICENSE_SERVICE_REDIS_PASSWORD}
   db: ${LICENSE_SERVICE_REDIS_DB}
 
-# Ed25519 cert-signing keys (design doc §9). The default seed is REQUIRED —
-# losing it means every issued cert can never be re-signed. Keep an offline
-# copy (password manager / paper). Never commit real seeds.
+# Ed25519 cert-signing keys (design doc §9). A flat list — one entry for
+# single-key deployments, more for rotation / per-build shards. Losing a
+# seed means every cert it signed can never be re-signed: keep offline
+# copies (password manager / paper). Never commit real seeds.
 signing:
-  seed: ${LICENSE_SIGNING_SEED}
-  # Named keys (rotation / per-build shards). Add entries as needed, each
-  # with its own env-expanded values; absent list = default key only:
-  #   named:
-  #     - key_id: "k2027"
-  #       seed: "<64-hex seed>"
-  # Which key signs NEW payloads; empty = default. Flip to a named kid only
-  # after clients carry that key (rotation cutover).
+  keys:
+    - key_id: ${LICENSE_SIGNING_KEY_ID}
+      seed: ${LICENSE_SIGNING_SEED}
+    # Add entries for more keys, each with its own env vars:
+    #   - key_id: "k2027"
+    #     seed: "<64-hex seed>"
+  # Which key signs NEW payloads; empty + exactly one key = that key.
+  # REQUIRED when multiple keys are configured. Flip only after clients
+  # carry the new kid in their key table (fail-closed on unknown kids).
   sign_key_id: ${LICENSE_SIGNING_SIGN_KEY_ID}
 
 # Keyless trial accounting.

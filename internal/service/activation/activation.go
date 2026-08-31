@@ -403,12 +403,10 @@ func (s *Service) signCert(keyRef *licenseIDRef, deviceToken, fingerprint string
 		id := LicenseID(keyRef.hash)
 		p.LicenseID = &id
 	}
-	// Rotation cutover: when an active named key is configured, every NEW
-	// cert carries its kid and is signed with that key (Sign follows the
-	// payload kid, fail-closed against unconfigured ids).
-	if kid := s.signer.ActiveKeyID(); kid != "" {
-		p.SigningKeyID = &kid
-	}
+	// Every cert names its signing key; Sign follows the payload kid
+	// (fail-closed against unconfigured ids). Switching keys is a config
+	// change (signing.keys + sign_key_id), not code.
+	p.SigningKeyID = s.signer.ActiveKeyID()
 	return s.signer.Sign(p)
 }
 

@@ -44,7 +44,7 @@ func newHarness(t *testing.T) *harness {
 	db := dbx.SetupTestDB(t, dbx.DriverPostgres)
 	require.NoError(t, dbx.AutoMigrate(db, models.AllModels()...))
 	rdb := redisx.NewTestClient(t)
-	signer, err := cert.NewSigner(testSeed, nil, "")
+	signer, err := cert.NewSigner(map[string]string{"k1": testSeed}, "")
 	require.NoError(t, err)
 	return &harness{
 		admin: admin.New(db, signer, 14),
@@ -359,33 +359,36 @@ func TestTrialsShowAndReset(t *testing.T) {
 	require.False(t, resp.GetAlreadyStarted())
 }
 
-// TestShowPubKey: base64 of the RFC 8032 TEST1 public key; named keys are
-// listed (sorted) when configured, absent otherwise.
+// TestShowPubKey: lists every configured key (sorted) plus the active kid.
 func TestShowPubKey(t *testing.T) {
 	h := newHarness(t)
 	resp, err := h.admin.ShowPubKey(context.Background(), &licensev1.ShowPubKeyRequest{})
 	require.NoError(t, err)
-	require.Equal(t, "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=", resp.GetPublicKeyB64())
-	require.Empty(t, resp.GetNamedKeys())
+	require.Len(t, resp.GetKeys(), 1)
+	require.Equal(t, "k1", resp.GetActiveKeyId())
+	require.Equal(t, "k1", resp.GetKeys()[0].GetKeyId())
+	require.Equal(t, "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=", resp.GetKeys()[0].GetPublicKeyB64())
 }
 
-func TestShowPubKeyNamedKeys(t *testing.T) {
+func TestShowPubKeyMultipleKeys(t *testing.T) {
 	db := dbx.SetupTestDB(t, dbx.DriverPostgres)
 	require.NoError(t, dbx.AutoMigrate(db, models.AllModels()...))
-	namedSeed := "4ccd089b28ff96da9db6c346ec114e0f5b8058f5e8ad5b7e2b4b1e7c5d3f5a6b"
-	signer, err := cert.NewSigner(testSeed, map[string]string{
-		"b-key": namedSeed,
+	otherSeed := "4ccd089b28ff96da9db6c346ec114e0f5b8058f5e8ad5b7e2b4b1e7c5d3f5a6b"
+	signer, err := cert.NewSigner(map[string]string{
 		"a-key": testSeed,
-	}, "")
+		"b-key": otherSeed,
+	}, "b-key")
 	require.NoError(t, err)
 	svc := admin.New(db, signer, 14)
 
 	resp, err := svc.ShowPubKey(context.Background(), &licensev1.ShowPubKeyRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.GetNamedKeys(), 2)
-	require.Equal(t, "a-key", resp.GetNamedKeys()[0].GetKeyId())
-	require.Equal(t, "b-key", resp.GetNamedKeys()[1].GetKeyId())
-	require.Equal(t, "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=", resp.GetNamedKeys()[0].GetPublicKeyB64())
+	require.Equal(t, "b-key", resp.GetActiveKeyId())
+	require.Len(t, resp.GetKeys(), 2)
+	require.Equal(t, "a-key", resp.GetKeys()[0].GetKeyId())
+	require.Equal(t, "b-key", resp.GetKeys()[1].GetKeyId())
+	require.Equal(t, "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=", resp.GetKeys()[0].GetPublicKeyB64())
+	require.NotEqual(t, resp.GetKeys()[0].GetPublicKeyB64(), resp.GetKeys()[1].GetPublicKeyB64())
 }
 
 // TestListKeys.

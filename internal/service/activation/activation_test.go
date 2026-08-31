@@ -56,7 +56,7 @@ func newHarnessOpts(t *testing.T, opts Options) *harness {
 	db := dbx.SetupTestDB(t, dbx.DriverPostgres)
 	require.NoError(t, dbx.AutoMigrate(db, models.AllModels()...))
 	rdb := redisx.NewTestClient(t)
-	signer, err := cert.NewSigner(testSeed, nil, "")
+	signer, err := cert.NewSigner(map[string]string{"k1": testSeed}, "")
 	require.NoError(t, err)
 	return &harness{svc: New(db, rdb, signer, opts), db: db, rdb: rdb}
 }

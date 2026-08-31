@@ -94,17 +94,20 @@ func resolveDomainOptions(cfg *config.Config) (activation.Options, error) {
 // an empty seed is a startup error (fail-fast beats signing with nothing).
 func resolveSigner(cfg *config.Config) (*cert.Signer, error) {
 	sc := cfg.Signing
-	if sc == nil || sc.Seed == "" {
-		return nil, fmt.Errorf("signing.seed is required (set LICENSE_SIGNING_SEED)")
+	if sc == nil || len(sc.Keys) == 0 {
+		return nil, fmt.Errorf("signing.keys needs at least one entry")
 	}
-	named := map[string]string{}
-	for _, nk := range sc.Named {
-		if nk == nil {
+	keys := map[string]string{}
+	for _, k := range sc.Keys {
+		if k == nil {
 			continue
 		}
-		named[nk.KeyID] = nk.Seed
+		if _, dup := keys[k.KeyID]; dup {
+			return nil, fmt.Errorf("duplicate signing key_id %q", k.KeyID)
+		}
+		keys[k.KeyID] = k.Seed
 	}
-	signer, err := cert.NewSigner(sc.Seed, named, sc.SignKeyID)
+	signer, err := cert.NewSigner(keys, sc.SignKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("signer: %w", err)
 	}

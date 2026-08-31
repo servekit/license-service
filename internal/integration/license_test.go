@@ -67,7 +67,7 @@ func startStack(t *testing.T) *stack {
 	grpcAddr := freePort(t)
 	cfg := &config.Config{
 		Server:  &config.ServerConfig{GRPCAddr: grpcAddr, HTTPAddr: ""},
-		Signing: &config.SigningConfig{Seed: testSeed},
+		Signing: &config.SigningConfig{Keys: []*config.SigningKey{{KeyID: "k1", Seed: testSeed}}},
 		Trial:   &config.TrialConfig{Days: 14},
 		// Quota 1 pins the 429 path within a single test flow.
 		RateLimit: &config.RateLimitConfig{KeyPrefix: "itest:rate", Window: time.Minute, Max: 1},

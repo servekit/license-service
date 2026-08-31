@@ -81,8 +81,7 @@ func randomPayload(rng *rand.Rand) *Payload {
 		p.LicenseID = &id
 	}
 	if rng.Intn(4) == 0 {
-		kid := fmt.Sprintf("k%d", rng.Intn(100))
-		p.SigningKeyID = &kid
+		p.SigningKeyID = fmt.Sprintf("k%d", rng.Intn(100))
 	}
 	for _, m := range []string{"downloads", "tools", "zzz"} {
 		if rng.Intn(2) == 0 {

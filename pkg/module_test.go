@@ -25,7 +25,7 @@ func TestNewModule_Ping(t *testing.T) {
 
 	hdl, err := pkg.NewModule(&config.Config{
 		Server:  &config.ServerConfig{},
-		Signing: &config.SigningConfig{Seed: "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"},
+		Signing: &config.SigningConfig{Keys: []*config.SigningKey{{KeyID: "k1", Seed: "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"}}},
 		Trial:   &config.TrialConfig{Days: 14},
 		// Hand-built configs get no default-tag treatment (that is
 		// configx's job on Load) — every knob must be present.

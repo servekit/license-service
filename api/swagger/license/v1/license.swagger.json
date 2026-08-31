@@ -1162,17 +1162,17 @@
     "v1ShowPubKeyResponse": {
       "type": "object",
       "properties": {
-        "publicKeyB64": {
+        "activeKeyId": {
           "type": "string",
-          "description": "base64 of the 32-byte Ed25519 public key derived from the default seed\n(kid null — the key every shipped client pins as its fallback)."
+          "description": "The kid currently signing new payloads."
         },
-        "namedKeys": {
+        "keys": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1SigningKeyInfo"
           },
-          "description": "All configured named keys, sorted by key_id."
+          "description": "All configured keys, sorted by key_id — pin these into client key\ntables."
         }
       }
     },
@@ -1198,7 +1198,7 @@
           "type": "string"
         }
       },
-      "description": "SigningKeyInfo describes one named signing key (rotation / per-build\nshard keys clients pin into their key table)."
+      "description": "SigningKeyInfo describes one signing key (single-key deployments list one;\nrotation / per-build shards list more)."
     },
     "v1SlotSummary": {
       "type": "object",

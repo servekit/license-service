@@ -35,8 +35,9 @@ gRPC 监听 `:19096`（servekit 序列的下一个槽位）。HTTP 面本期不�
 
 **必填项：**
 
-- `LICENSE_SIGNING_SEED` — 64 hex Ed25519 seed（`openssl rand -hex 32` 生成）。
-  **丢失 = 全部已发凭证无法续签**，请保留离线副本；不入库、不入 git、不进日志。
+- `LICENSE_SIGNING_KEY_ID` + `LICENSE_SIGNING_SEED` — 签名钥列表的第一项
+  （kid + 64 hex seed，`openssl rand -hex 32` 生成）。**丢 seed = 它签过的全部
+  凭证无法续签**，请保留离线副本；不入库、不入 git、不进日志。
 
 > admin 面不做服务端鉴权：license-service 是内网 gRPC 服务，授权由边缘的
 > 用户/权限系统（网关 + user-service）决定，**gRPC 端口与管理路径绝不暴露公网**。
@@ -280,10 +281,11 @@ hdl, err := pkg.NewModule(cfg,
 
 - **备份**：每日 `pg_dump` 快照，保留 14 份滚动 + 异机拷贝；备份含 key_hash 与
   entitlements（收入数据），按敏感文件管理（0600）。
-- **多钥与轮换**：`signing.named` 列表配任意多把命名钥（`{key_id, seed}`），
-  `LICENSE_SIGNING_SIGN_KEY_ID` 选当前签发钥（空 = 默认钥）。注意：切到命名钥前，
-  客户端公钥表里必须已有该 kid 的公钥（`ShowPubKey` 列出全部公钥供钉入）；
-  泄露事故 runbook 见 design §9.3（客户端换钉死公钥才真正止血）。
+- **多钥与轮换**：`signing.keys` 是扁平列表——单钥就是一项，多钥（轮换/按构建
+  分片）就配多项；`LICENSE_SIGNING_SIGN_KEY_ID` 选当前签发钥（单钥可省，多钥必填）。
+  每张凭证恒带 `signingKeyId`，客户端公钥表查不到即拒收（fail-closed）；切钥前
+  客户端表里必须已有该 kid（`ShowPubKey` 列出全部公钥供钉入）。泄露事故 runbook
+  见 design §9.3（客户端换钉死公钥才真正止血）。
 - **日志红线**：明文 key / fingerprint_id / remote_addr / payload / signature
   绝不进日志；排障用 licenseId + device_token + certId。
 - admin 审计：所有变更 RPC 输出 `admin_audit` 结构化日志（op/target/reason）。

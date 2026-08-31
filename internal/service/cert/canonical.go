@@ -82,10 +82,10 @@ func canonicalEntitlement(w *buf, e Entitlement) {
 //	licenseId, [signingKeyId], v
 //
 // licenseId is always present (null for keyless trial certs);
-// signingKeyId is omitted when nil (the golden vectors pin this: the
-// default-key vector carries no signingKeyId member) and must sort between
-// licenseId and v when set. Entitlement keys (module names) are sorted
-// bytewise. issuedAt is RFC3339 UTC at second precision.
+// signingKeyId is ALWAYS present (no default-key special case — every cert
+// names its key) and sorts between licenseId and v. Entitlement keys
+// (module names) are sorted bytewise. issuedAt is RFC3339 UTC at second
+// precision.
 func (p *Payload) MarshalCanonical() []byte {
 	w := &buf{}
 
@@ -131,12 +131,10 @@ func (p *Payload) MarshalCanonical() []byte {
 		w.str(*p.LicenseID)
 	}
 	w.raw(",")
-	if p.SigningKeyID != nil {
-		w.str("signingKeyId")
-		w.raw(":")
-		w.str(*p.SigningKeyID)
-		w.raw(",")
-	}
+	w.str("signingKeyId")
+	w.raw(":")
+	w.str(p.SigningKeyID)
+	w.raw(",")
 	w.str("v")
 	w.raw(":")
 	w.raw(fmt.Sprintf("%d", p.V))
@@ -204,15 +202,11 @@ func UnmarshalCanonical(data []byte) (*Payload, error) {
 				p.LicenseID = &s
 			}
 		case "signingKeyId":
-			if v == nil {
-				p.SigningKeyID = nil
-			} else {
-				s, ok := v.(string)
-				if !ok {
-					return nil, fmt.Errorf("signingKeyId must be a string or null")
-				}
-				p.SigningKeyID = &s
+			s, ok := v.(string)
+			if !ok {
+				return nil, fmt.Errorf("signingKeyId must be a string")
 			}
+			p.SigningKeyID = s
 		case "entitlements":
 			ents, ok := v.(map[string]any)
 			if !ok {

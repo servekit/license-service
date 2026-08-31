@@ -583,19 +583,19 @@ func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialReque
 
 // ─── signing ────────────────────────────────────────────────────────────────
 
-// ShowPubKey exposes the signing public keys for pinning into client
-// builds: the default key plus every configured named key, sorted by kid.
+// ShowPubKey exposes the signing public keys for pinning into client key
+// tables: every configured key, sorted by kid, plus the active kid.
 func (s *Service) ShowPubKey(_ context.Context, _ *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
-	resp := &licensev1.ShowPubKeyResponse{PublicKeyB64: s.signer.PublicKeyB64()}
-	named := s.signer.NamedPublicKeys()
-	kids := make([]string, 0, len(named))
-	for kid := range named {
+	resp := &licensev1.ShowPubKeyResponse{ActiveKeyId: s.signer.ActiveKeyID()}
+	pubs := s.signer.PublicKeys()
+	kids := make([]string, 0, len(pubs))
+	for kid := range pubs {
 		kids = append(kids, kid)
 	}
 	sort.Strings(kids)
 	for _, kid := range kids {
-		resp.NamedKeys = append(resp.GetNamedKeys(),
-			&licensev1.SigningKeyInfo{KeyId: kid, PublicKeyB64: named[kid]})
+		resp.Keys = append(resp.GetKeys(),
+			&licensev1.SigningKeyInfo{KeyId: kid, PublicKeyB64: pubs[kid]})
 	}
 	return resp, nil
 }

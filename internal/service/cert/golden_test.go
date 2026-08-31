@@ -34,8 +34,8 @@ func goldenTime(t *testing.T, s string) time.Time {
 // omitted-when-null signingKeyId member, second-precision issuedAt, and the
 // deterministic signature.
 func TestGolden_MainVector(t *testing.T) {
-	wantPayload := `{"certId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"downloads":{"expiresAt":null,"kind":"perpetual"},"tools":{"expiresAt":"2027-08-24T12:00:00Z","kind":"subscription"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":"lk_9f86d081884c7d659a2feaa0c55ad015","v":1}`
-	wantSig := "VBDWouHSgIv5DbSYiQC880OpDk9gjuZMlpcIcLVDAq0G0Vz7iOexr2hApkTL2aiTEqzcjjtZacrw82hT0IaoDQ=="
+	wantPayload := `{"certId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"downloads":{"expiresAt":null,"kind":"perpetual"},"tools":{"expiresAt":"2027-08-24T12:00:00Z","kind":"subscription"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":"lk_9f86d081884c7d659a2feaa0c55ad015","signingKeyId":"k1","v":1}`
+	wantSig := "Bcz8PToiBjVfHV8ekGIC9bRBWb0YD1+kHGoCPZvNnPuqFqDcQ9YPY9JuoUl9l8391TV1z0WUGFsJEIalBOdzBw=="
 
 	licenseID := goldenLicenseID
 	p := &Payload{
@@ -45,6 +45,7 @@ func TestGolden_MainVector(t *testing.T) {
 		DeviceToken:   goldenDevice,
 		FingerprintID: goldenFingerprint,
 		IssuedAt:      goldenTime(t, goldenIssuedAt),
+		SigningKeyID:  "k1",
 		Entitlements: map[string]Entitlement{
 			"downloads": {Kind: KindPerpetual},
 			"tools": {
@@ -55,7 +56,7 @@ func TestGolden_MainVector(t *testing.T) {
 	}
 	require.Equal(t, wantPayload, string(p.MarshalCanonical()))
 
-	signer, err := NewSigner(goldenSeedHex, nil, "")
+	signer, err := NewSigner(map[string]string{"k1": goldenSeedHex}, "")
 	require.NoError(t, err)
 	payload, sig, err := signer.Sign(p)
 	require.NoError(t, err)
@@ -70,8 +71,8 @@ func TestGolden_MainVector(t *testing.T) {
 // TestGolden_KeylessVector: keyless trial cert — licenseId null, entitlements
 // carry the full trial ledger including an already-expired entry.
 func TestGolden_KeylessVector(t *testing.T) {
-	wantPayload := `{"certId":"0b8f2c1a-4d3e-4f5a-9b6c-7d8e9f0a1b2c","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"downloads":{"expiresAt":"2026-09-07T12:00:00Z","kind":"trial"},"tools":{"expiresAt":"2026-08-20T12:00:00Z","kind":"trial"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":null,"v":1}`
-	wantSig := "C0hWnqzldco1YDrB+WlrijMyyXhv35hw9f9QFzFegbEzpPlwQOfbZ8w9m9F/RcPzUQpXqZWEDTAjkJwcKKcxDg=="
+	wantPayload := `{"certId":"0b8f2c1a-4d3e-4f5a-9b6c-7d8e9f0a1b2c","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"downloads":{"expiresAt":"2026-09-07T12:00:00Z","kind":"trial"},"tools":{"expiresAt":"2026-08-20T12:00:00Z","kind":"trial"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":null,"signingKeyId":"k1","v":1}`
+	wantSig := "rUa0u/lqedL10jj8ZQXUTHdJSe9VSadD9jKG8GmYVmK1Y9teBLGYoVnQzfFvfaUZV8PiIIDk9lDmFu8MmU/OAg=="
 
 	p := &Payload{
 		V:             1,
@@ -80,6 +81,7 @@ func TestGolden_KeylessVector(t *testing.T) {
 		DeviceToken:   goldenDevice,
 		FingerprintID: goldenFingerprint,
 		IssuedAt:      goldenTime(t, goldenIssuedAt),
+		SigningKeyID:  "k1",
 		Entitlements: map[string]Entitlement{
 			"downloads": {
 				Kind:      KindTrial,
@@ -93,7 +95,7 @@ func TestGolden_KeylessVector(t *testing.T) {
 	}
 	require.Equal(t, wantPayload, string(p.MarshalCanonical()))
 
-	signer, err := NewSigner(goldenSeedHex, nil, "")
+	signer, err := NewSigner(map[string]string{"k1": goldenSeedHex}, "")
 	require.NoError(t, err)
 	payload, sig, err := signer.Sign(p)
 	require.NoError(t, err)
@@ -106,8 +108,8 @@ func TestGolden_KeylessVector(t *testing.T) {
 // omissions (a single entitlement exposes entitlements-object ordering with
 // no second member to mask it).
 func TestGolden_SingleModuleVector(t *testing.T) {
-	wantPayload := `{"certId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"tools":{"expiresAt":"2027-08-24T12:00:00Z","kind":"subscription"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":"lk_9f86d081884c7d659a2feaa0c55ad015","v":1}`
-	wantSig := "bcHKQJWvbb9VnRg5JzpkgQ50dVugLedwPLJHjtkcStgRCTKzhcHijHm8GrryzsPFb/JaJycTseGiD86ellGOCg=="
+	wantPayload := `{"certId":"3fa85f64-5717-4562-b3fc-2c963f66afa6","deviceToken":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","entitlements":{"tools":{"expiresAt":"2027-08-24T12:00:00Z","kind":"subscription"}},"fingerprintId":"v1.9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","issuedAt":"2026-08-24T12:00:00Z","licenseId":"lk_9f86d081884c7d659a2feaa0c55ad015","signingKeyId":"k1","v":1}`
+	wantSig := "xl6IHxOnXqdRarrtcZJYn5NllLFMLedAB40iAQQHzAG/tUuEQsS/Q7tA957VepnR1cZAyptSB1Yh0WyrgNniAg=="
 
 	licenseID := goldenLicenseID
 	p := &Payload{
@@ -117,6 +119,7 @@ func TestGolden_SingleModuleVector(t *testing.T) {
 		DeviceToken:   goldenDevice,
 		FingerprintID: goldenFingerprint,
 		IssuedAt:      goldenTime(t, goldenIssuedAt),
+		SigningKeyID:  "k1",
 		Entitlements: map[string]Entitlement{
 			"tools": {
 				Kind:      KindSubscription,
@@ -126,7 +129,7 @@ func TestGolden_SingleModuleVector(t *testing.T) {
 	}
 	require.Equal(t, wantPayload, string(p.MarshalCanonical()))
 
-	signer, err := NewSigner(goldenSeedHex, nil, "")
+	signer, err := NewSigner(map[string]string{"k1": goldenSeedHex}, "")
 	require.NoError(t, err)
 	payload, sig, err := signer.Sign(p)
 	require.NoError(t, err)
@@ -147,27 +150,26 @@ func TestGolden_SigningKeyID(t *testing.T) {
 		DeviceToken:   goldenDevice,
 		FingerprintID: goldenFingerprint,
 		IssuedAt:      goldenTime(t, goldenIssuedAt),
-		SigningKeyID:  &kid,
+		SigningKeyID:  kid,
 		Entitlements:  map[string]Entitlement{"tools": {Kind: KindPerpetual}},
 	}
 	out := string(p.MarshalCanonical())
 	require.Contains(t, out, `"licenseId":"`+goldenLicenseID+`","signingKeyId":"k2027","v":1`)
 
-	// No secondary configured -> signing with a named kid must fail.
-	defaultOnly, err := NewSigner(goldenSeedHex, nil, "")
+	// Kid not configured on this signer -> fail-closed.
+	onlyK1, err := NewSigner(map[string]string{"k1": goldenSeedHex}, "")
 	require.NoError(t, err)
-	_, _, err = defaultOnly.Sign(p)
+	_, _, err = onlyK1.Sign(p)
 	require.Error(t, err)
 
-	// With the named secondary configured, it signs and verifies.
-	rotated, err := NewSigner(goldenSeedHex, map[string]string{kid: goldenSeedHex}, "")
+	// Configured -> signs; single key becomes active implicitly.
+	s, err := NewSigner(map[string]string{kid: goldenSeedHex}, "")
 	require.NoError(t, err)
-	payload, sig, err := rotated.Sign(p)
+	payload, sig, err := s.Sign(p)
 	require.NoError(t, err)
 	require.Equal(t, out, payload)
 	require.NotEqual(t, "", sig)
-	require.Equal(t, rotated.NamedPublicKeys()[kid], rotated.PublicKeyB64())
-	require.Empty(t, rotated.ActiveKeyID(), "no active kid configured")
+	require.Equal(t, kid, s.ActiveKeyID())
 }
 
 // TestSigner_MultiKeyAndActive: several named keys coexist; a dangling
@@ -175,49 +177,52 @@ func TestGolden_SigningKeyID(t *testing.T) {
 // the payload stamp, and Sign stays literal/fail-closed.
 func TestSigner_MultiKeyAndActive(t *testing.T) {
 	seed2 := "4ccd089b28ff96da9db6c346ec114e0f5b8058f5e8ad5b7e2b4b1e7c5d3f5a6b"
-	s, err := NewSigner(goldenSeedHex, map[string]string{
-		"k2027": seed2,         // distinct from the default key
-		"k2028": goldenSeedHex, // duplicates the default seed; only listed
+	s, err := NewSigner(map[string]string{
+		"k2027": seed2,
+		"k2028": goldenSeedHex,
 	}, "k2027")
 	require.NoError(t, err)
 	require.Equal(t, "k2027", s.ActiveKeyID())
-	require.Len(t, s.NamedPublicKeys(), 2)
+	require.Len(t, s.PublicKeys(), 2)
 
 	// Dangling active kid is rejected at construction.
-	_, err = NewSigner(goldenSeedHex, map[string]string{"k2027": goldenSeedHex}, "k9999")
+	_, err = NewSigner(map[string]string{"k2027": goldenSeedHex}, "k9999")
 	require.Error(t, err)
 
-	// Named key with an empty kid is rejected.
-	_, err = NewSigner(goldenSeedHex, map[string]string{"": goldenSeedHex}, "")
+	// Multiple keys without sign_key_id are ambiguous.
+	_, err = NewSigner(map[string]string{"k2027": goldenSeedHex, "k2028": seed2}, "")
 	require.Error(t, err)
 
-	// Sign stays literal: payload without kid -> default key signature.
+	// Empty kid / empty key set are rejected.
+	_, err = NewSigner(map[string]string{"": goldenSeedHex}, "")
+	require.Error(t, err)
+	_, err = NewSigner(nil, "")
+	require.Error(t, err)
+
+	// Sign stays literal: payload kid -> that key's signature.
 	licenseID := goldenLicenseID
 	p := &Payload{
 		V: 1, CertID: "c", DeviceToken: "d", FingerprintID: "f",
-		IssuedAt:     goldenTime(t, goldenIssuedAt),
-		LicenseID:    &licenseID,
-		Entitlements: map[string]Entitlement{},
+		IssuedAt: goldenTime(t, goldenIssuedAt), LicenseID: &licenseID,
+		SigningKeyID: "k2028", Entitlements: map[string]Entitlement{},
 	}
 	payload, sig, err := s.Sign(p)
 	require.NoError(t, err)
+	require.Contains(t, payload, `"signingKeyId":"k2028"`)
 	pub, _ := hex.DecodeString(goldenPubkeyHex)
-	require.True(t, Verify(ed25519.PublicKey(pub), payload, sig), "no kid -> default key")
+	require.True(t, Verify(ed25519.PublicKey(pub), payload, sig), "k2028 uses the golden seed")
 
-	// Payload with the active kid -> named key signature, kid in canonical bytes.
-	kid := "k2027"
-	p.SigningKeyID = &kid
+	// A different key's pubkey must NOT verify it.
+	p.SigningKeyID = "k2027"
 	payload, sig, err = s.Sign(p)
 	require.NoError(t, err)
-	require.Contains(t, payload, `"signingKeyId":"k2027"`)
-	namedPub, err := base64.StdEncoding.DecodeString(s.NamedPublicKeys()["k2027"])
+	otherPub, err := base64.StdEncoding.DecodeString(s.PublicKeys()["k2027"])
 	require.NoError(t, err)
-	require.True(t, Verify(ed25519.PublicKey(namedPub), payload, sig), "named key signature")
-	require.False(t, Verify(ed25519.PublicKey(pub), payload, sig), "default key must NOT verify it")
+	require.True(t, Verify(ed25519.PublicKey(otherPub), payload, sig))
+	require.False(t, Verify(ed25519.PublicKey(pub), payload, sig), "distinct seeds must not cross-verify")
 
 	// Unconfigured kid -> fail-closed error.
-	unknown := "k9999"
-	p.SigningKeyID = &unknown
+	p.SigningKeyID = "k9999"
 	_, _, err = s.Sign(p)
 	require.Error(t, err)
 }

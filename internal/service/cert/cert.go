@@ -20,11 +20,15 @@ const (
 	KindTrial        Kind = "trial"
 )
 
-// Payload is the cert v1 model (design doc §8.2). Invariants enforced by the
-// signer's callers (admin grant + activation, both sides validated):
+// Payload is the cert v1 model (design doc §8.2, as amended: no default
+// key). Invariants enforced by the signer's callers (admin grant +
+// activation, both sides validated):
 //
 //   - perpetual entries have ExpiresAt == nil;
-//   - subscription/trial entries always have ExpiresAt != nil.
+//   - subscription/trial entries always have ExpiresAt != nil;
+//   - SigningKeyID is always set — every cert names the key that signed it,
+//     and clients verify via their {kid → pubkey} table (fail-closed on
+//     unknown kids).
 type Payload struct {
 	V             int
 	CertID        string
@@ -32,7 +36,7 @@ type Payload struct {
 	DeviceToken   string
 	FingerprintID string
 	IssuedAt      time.Time
-	SigningKeyID  *string // nil = default key; non-nil must match Signer.keyID
+	SigningKeyID  string
 	Entitlements  map[string]Entitlement
 }
 
@@ -57,60 +61,55 @@ func parseTime(s string) (time.Time, error) {
 	return t, nil
 }
 
-// defaultKeyID names the implicit default key (signingKeyId null in cert
-// payloads — the key every shipped client pins as its fallback).
-const defaultKeyID = ""
-
-// Signer holds the Ed25519 key material: a mandatory default key plus any
-// number of named keys (rotation transitions, per-build sharding).
+// Signer holds the Ed25519 key material: a set of named keys (single-key
+// deployments are just a set of one). There is no implicit default key —
+// every payload names its key, every client verifies via its key table.
 type Signer struct {
-	keys   map[string]ed25519.PrivateKey // kid → key; "" is the default
-	active string                        // kid that signs NEW payloads; "" = default
+	keys   map[string]ed25519.PrivateKey // kid → key
+	active string                        // kid that signs NEW payloads
 }
 
-// NewSigner builds a Signer from the default 64-hex seed plus optional named
-// keys (kid → 64-hex seed). signKeyID selects which key signs NEW payloads
-// via ActiveKeyID; "" (or absent) keeps the default. signKeyID must reference
-// a configured named key — a dangling active key is a startup error, not a
-// silent fallback.
-func NewSigner(defaultSeedHex string, named map[string]string, signKeyID string) (*Signer, error) {
-	def, err := seedFromHex(defaultSeedHex)
-	if err != nil {
-		return nil, fmt.Errorf("signing seed: %w", err)
+// NewSigner builds a Signer from kid → 64-hex seed entries (at least one).
+// signKeyID selects the key that signs NEW payloads via ActiveKeyID; when
+// empty and exactly one key is configured, that key is active implicitly.
+// A dangling signKeyID, an empty kid, or an ambiguous single-key default
+// is a startup error, not a silent fallback.
+func NewSigner(keysIn map[string]string, signKeyID string) (*Signer, error) {
+	if len(keysIn) == 0 {
+		return nil, fmt.Errorf("at least one signing key is required")
 	}
-	keys := map[string]ed25519.PrivateKey{defaultKeyID: def}
-	for kid, seedHex := range named {
+	keys := make(map[string]ed25519.PrivateKey, len(keysIn))
+	for kid, seedHex := range keysIn {
 		if kid == "" {
-			return nil, fmt.Errorf("named signing key needs a non-empty key_id")
+			return nil, fmt.Errorf("signing key needs a non-empty key_id")
 		}
 		k, err := seedFromHex(seedHex)
 		if err != nil {
-			return nil, fmt.Errorf("named signing key %q: %w", kid, err)
+			return nil, fmt.Errorf("signing key %q: %w", kid, err)
 		}
 		keys[kid] = k
 	}
-	if signKeyID != "" {
-		if _, ok := keys[signKeyID]; !ok {
-			return nil, fmt.Errorf("sign_key_id %q has no matching named key", signKeyID)
+	active := signKeyID
+	if active == "" {
+		if len(keys) != 1 {
+			return nil, fmt.Errorf("sign_key_id is required when multiple signing keys are configured")
+		}
+		for kid := range keys {
+			active = kid
 		}
 	}
-	return &Signer{keys: keys, active: signKeyID}, nil
+	if _, ok := keys[active]; !ok {
+		return nil, fmt.Errorf("sign_key_id %q has no matching key", active)
+	}
+	return &Signer{keys: keys, active: active}, nil
 }
 
-// PublicKeyB64 returns the default key's public half, base64 (standard
-// alphabet) — the value operators pin into the client build.
-func (s *Signer) PublicKeyB64() string {
-	return base64.StdEncoding.EncodeToString(pubOf(s.keys[defaultKeyID]))
-}
-
-// NamedPublicKeys returns kid → base64 public key for every named key (the
-// rotation/shard keys clients can pin into their key table).
-func (s *Signer) NamedPublicKeys() map[string]string {
-	out := make(map[string]string, len(s.keys)-1)
+// PublicKeys returns kid → base64 public key for every configured key — the
+// values operators pin into client key tables.
+func (s *Signer) PublicKeys() map[string]string {
+	out := make(map[string]string, len(s.keys))
 	for kid, k := range s.keys {
-		if kid != defaultKeyID {
-			out[kid] = base64.StdEncoding.EncodeToString(pubOf(k))
-		}
+		out[kid] = base64.StdEncoding.EncodeToString(pubOf(k))
 	}
 	return out
 }
@@ -125,30 +124,25 @@ func pubOf(k ed25519.PrivateKey) ed25519.PublicKey {
 	return pub
 }
 
-// ActiveKeyID is the kid stamped onto NEW payloads by the issuance path
-// ("" = sign with the default key, signingKeyId omitted from the payload).
+// ActiveKeyID is the kid stamped onto every NEW payload.
 func (s *Signer) ActiveKeyID() string { return s.active }
 
-// Ready reports whether the signer has usable key material (health check).
+// Ready reports whether the signer has usable key material (health check):
+// an active key of the right size.
 func (s *Signer) Ready() bool {
-	k, ok := s.keys[defaultKeyID]
+	k, ok := s.keys[s.active]
 	return ok && len(k) == ed25519.PrivateKeySize
 }
 
-// Sign produces the detached signature over p's canonical bytes. The signing
-// key follows p.SigningKeyID: nil signs with the default key; a non-nil id
-// must match a configured named key (fail-closed — an unresolvable kid is
-// never downgraded to the default key). ActiveKeyID deliberately does NOT
-// apply here: Sign is literal about what the payload claims; choosing the
-// active key for new payloads is the caller's (issuance path's) job.
+// Sign produces the detached signature over p's canonical bytes with the
+// key named by p.SigningKeyID (fail-closed — an unconfigured kid is an
+// error, never a fallback). ActiveKeyID deliberately does NOT apply here:
+// Sign is literal about what the payload claims; choosing the active key
+// for new payloads is the caller's (issuance path's) job.
 func (s *Signer) Sign(p *Payload) (payload, signatureB64 string, err error) {
-	kid := defaultKeyID
-	if p.SigningKeyID != nil {
-		kid = *p.SigningKeyID
-	}
-	key, ok := s.keys[kid]
+	key, ok := s.keys[p.SigningKeyID]
 	if !ok {
-		return "", "", fmt.Errorf("signing key %q not configured", kid)
+		return "", "", fmt.Errorf("signing key %q not configured", p.SigningKeyID)
 	}
 	data := p.MarshalCanonical()
 	sig := ed25519.Sign(key, data)

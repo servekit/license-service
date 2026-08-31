@@ -46,27 +46,26 @@ type Config struct {
 	Log       *logging.Config
 }
 
-// SigningConfig holds the Ed25519 seed material for license cert signing:
-// one mandatory default key (kid null) plus any number of named keys.
-// Secrets are injected via environment expansion (${LICENSE_SIGNING_SEED} in
-// config.example.yaml); they are never committed, logged, or stored in the DB.
+// SigningConfig holds the Ed25519 signing keys: a flat list — single-key
+// deployments are just a list of one, multi-key deployments (rotation
+// transitions, per-build shards) configure more. There is no implicit
+// default key. Secrets are injected via environment expansion; they are
+// never committed, logged, or stored in the DB.
 type SigningConfig struct {
-	// Seed is the 64-hex default Ed25519 seed (32 bytes). REQUIRED — service
-	// startup fails without it.
-	Seed string
-	// Named holds additional named keys (rotation transitions, per-build
-	// shards). Each needs a non-empty key_id; empty by default.
-	Named []*NamedSigningKey
-	// SignKeyID selects which key signs NEW payloads ("active" key). Empty =
-	// the default key (signingKeyId omitted from payloads). Must reference a
-	// configured named key — flipping this to a named kid is the rotation
-	// cutover; clients that pinned only the default key will reject named-key
-	// certs, so cut over only after the fleet carries the named pubkey.
+	// Keys holds kid → seed entries. At least one entry is required; every
+	// entry needs a non-empty, unique key_id.
+	Keys []*SigningKey
+	// SignKeyID selects the key that signs NEW payloads. When empty and
+	// exactly one key is configured, that key is active implicitly; with
+	// multiple keys it is REQUIRED. Flipping it to another kid is the
+	// rotation cutover — clients without that kid in their key table will
+	// reject the new certs (fail-closed), so cut over only after the fleet
+	// carries the pubkey.
 	SignKeyID string
 }
 
-// NamedSigningKey is one named signing key.
-type NamedSigningKey struct {
+// SigningKey is one named signing key.
+type SigningKey struct {
 	KeyID string
 	Seed  string
 }
