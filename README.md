@@ -37,8 +37,9 @@ gRPC 监听 `:19096`（servekit 序列的下一个槽位）。HTTP 面本期不�
 
 - `LICENSE_SIGNING_SEED` — 64 hex Ed25519 seed（`openssl rand -hex 32` 生成）。
   **丢失 = 全部已发凭证无法续签**，请保留离线副本；不入库、不入 git、不进日志。
-- `ADMIN_TOKEN` — LicenseAdminService 的 Bearer token（`openssl rand -hex 32`）。
-  为空时全部 admin RPC 拒绝（fail-closed）。
+
+> admin 面不做服务端鉴权：license-service 是内网 gRPC 服务，授权由边缘的
+> 用户/权限系统（网关 + user-service）决定，**gRPC 端口与管理路径绝不暴露公网**。
 
 **本地跑（`make run`）：**
 
@@ -54,8 +55,8 @@ make run            # 需要本机 PostgreSQL + Redis
 ## 测试调用（gRPC）
 
 ```bash
-# 发一把 key（admin，需 Bearer；明文 key 仅此一次出现）
-grpcurl -plaintext -H "authorization: Bearer $ADMIN_TOKEN" \
+# 发一把 key（内网直连 admin 面；明文 key 仅此一次出现）
+grpcurl -plaintext \
   -d '{"label":"order-42","grants":[{"module":"MODULE_TOOLS","kind":"ENTITLEMENT_KIND_PERPETUAL"}]}' \
   localhost:19096 license.v1.LicenseAdminService/CreateKey
 

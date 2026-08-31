@@ -18,7 +18,8 @@ Caddy（境内，TLS/ACME，license.aividlab.app 占位域名）
   │ gRPC（内网）                    ┌────────────────┐
   ▼                                 │ Postgres Redis │
 license-service :19096 (gRPC-only) └────────────────┘
-admin 面（/v1/admin/*）与 gRPC 端口只在内网可达，Bearer <ADMIN_TOKEN> 双保险。
+admin 面（/v1/admin/*）与 gRPC 端口只在内网可达；授权由边缘（网关 + 用户/权限系统）
+负责，license-service 自身不做操作员鉴权（内网信任边界）。
 ```
 
 ## 2. 客户端硬契约（aividlab Rust 客户端的行为约束）
@@ -103,6 +104,7 @@ gRPC status message 恒为 `"REASON: message"`（在第一个 `": "` 处切分�
 
 ## 8. 部署边界
 
-- Caddy 只反代四个客户端路径；admin 路径与 gRPC 端口不暴露公网。
+- Caddy 只反代四个客户端路径；admin 路径与 gRPC 端口**绝不**暴露公网——这是唯一的
+  网络边界，license-service 自身无鉴权（原 Bearer token 方案已移除，授权归边缘）。
 - 外部拨测 `/healthz` 2 分钟一次，连续 3 次失败告警（P1）。
 - gRPC 端口自带标准 grpc health 服务（grpc_health_probe 兼容），供容器探活。

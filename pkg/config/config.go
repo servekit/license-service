@@ -37,9 +37,6 @@ type Config struct {
 	Redis *redisx.Config
 	// Signing holds the Ed25519 cert-signing key material (design doc §9).
 	Signing *SigningConfig
-	// AdminToken is the Bearer token required by every LicenseAdminService
-	// RPC. Empty = all admin RPCs are rejected (fail-closed).
-	AdminToken string
 	// Trial configures keyless trial accounting (design doc §7.4).
 	Trial *TrialConfig
 	// RateLimit configures the per-identity fixed-window limiter

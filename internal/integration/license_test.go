@@ -17,7 +17,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
@@ -37,7 +36,6 @@ import (
 const (
 	testSeed    = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
 	testPubB64  = "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="
-	adminToken  = "test-admin-token"
 	fingerprint = "v1.5555555555555555555555555555555555555555555555555555555555555555"
 	keyShape    = "AV1DABCDEFGHIJKLMNOPQRST"
 )
@@ -68,10 +66,9 @@ func startStack(t *testing.T) *stack {
 
 	grpcAddr := freePort(t)
 	cfg := &config.Config{
-		Server:     &config.ServerConfig{GRPCAddr: grpcAddr, HTTPAddr: ""},
-		Signing:    &config.SigningConfig{Seed: testSeed},
-		AdminToken: adminToken,
-		Trial:      &config.TrialConfig{Days: 14},
+		Server:  &config.ServerConfig{GRPCAddr: grpcAddr, HTTPAddr: ""},
+		Signing: &config.SigningConfig{Seed: testSeed},
+		Trial:   &config.TrialConfig{Days: 14},
 		// Quota 1 pins the 429 path within a single test flow.
 		RateLimit: &config.RateLimitConfig{KeyPrefix: "itest:rate", Window: time.Minute, Max: 1},
 	}
@@ -101,11 +98,6 @@ func startStack(t *testing.T) *stack {
 	}
 
 	return &stack{client: client, db: db, rdb: rdb}
-}
-
-func adminCtx() context.Context {
-	return metadata.AppendToOutgoingContext(context.Background(),
-		"authorization", "Bearer "+adminToken)
 }
 
 // seedKeyWithSlots creates a key via the admin surface and activates slots
@@ -141,7 +133,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	})
 	require.Equal(t, codes.Unauthenticated, status.Convert(err).Code())
 
-	created, err := s.client.CreateKey(adminCtx(), &licensev1.CreateKeyRequest{
+	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
 		},
@@ -185,7 +177,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	require.Len(t, slots.GetDevices(), 3)
 
 	// 403 KEY_REVOKED → PermissionDenied.
-	_, err = s.client.RevokeKey(adminCtx(), &licensev1.RevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
+	_, err = s.client.RevokeKey(context.Background(), &licensev1.RevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
 	require.NoError(t, err)
 	require.NoError(t, s.rdb.FlushAll(ctx).Err())
 	_, err = s.client.Activate(ctx, &licensev1.ActivateRequest{
@@ -194,7 +186,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Convert(err).Code())
 
 	// 400 ALREADY_ENTITLED → InvalidArgument (trial with a valid key grant).
-	_, err = s.client.UnrevokeKey(adminCtx(), &licensev1.UnrevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
+	_, err = s.client.UnrevokeKey(context.Background(), &licensev1.UnrevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
 	require.NoError(t, err)
 	require.NoError(t, s.rdb.FlushAll(ctx).Err())
 	_, err = s.client.TrialStart(ctx, &licensev1.TrialStartRequest{
@@ -209,7 +201,7 @@ func TestPayloadContract(t *testing.T) {
 	s := startStack(t)
 	ctx := context.Background()
 
-	created, err := s.client.CreateKey(adminCtx(), &licensev1.CreateKeyRequest{
+	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_DOWNLOADS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
 		},
@@ -241,18 +233,17 @@ func TestPayloadContract(t *testing.T) {
 	}
 }
 
-// TestAdminAuth: Bearer token enforced on the admin surface only.
-func TestAdminAuth(t *testing.T) {
+// TestAdminFromInternalNetwork: the admin surface is callable directly —
+// authorization is the edge's job (gateway + user/permission system); the
+// only hard rule is that the gRPC port never leaves the internal network.
+func TestAdminFromInternalNetwork(t *testing.T) {
 	s := startStack(t)
 	ctx := context.Background()
 
 	_, err := s.client.CreateKey(ctx, &licensev1.CreateKeyRequest{})
-	require.Equal(t, codes.Unauthenticated, status.Convert(err).Code())
-
-	_, err = s.client.CreateKey(adminCtx(), &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
 
-	// The client surface needs no token.
+	// The client surface keeps its own error semantics.
 	_, err = s.client.Activate(ctx, &licensev1.ActivateRequest{
 		Key: "AV1DZZZZZZZZZZZZZZZZZZZZ", FingerprintId: fingerprint, DeviceToken: tok(1),
 	})

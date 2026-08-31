@@ -44,10 +44,6 @@ signing:
   # after clients carry that key (rotation cutover).
   sign_key_id: ${LICENSE_SIGNING_SIGN_KEY_ID}
 
-# Bearer token for all LicenseAdminService RPCs. Empty = admin RPCs rejected
-# (fail-closed). Rotate by changing the env var and restarting.
-admin_token: ${ADMIN_TOKEN}
-
 # Keyless trial accounting.
 trial:
   days: ${TRIAL_DAYS}

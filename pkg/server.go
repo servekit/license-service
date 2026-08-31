@@ -50,14 +50,16 @@ func WithServiceOptions(opts ...option.Option) ServerOption {
 
 // NewServer constructs a Server with all dependencies wired.
 //
-// The gRPC server runs with three interceptors in order:
+// The gRPC server runs with two interceptors in order:
 //   - interceptor.Error: maps xerr-wrapped service errors to gRPC status
 //     codes ("REASON: message" preserved) and promotes xcodes.Detailed
 //     proto details (SlotLimitInfo / RetryAfterInfo) into the status
 //   - protovalidate.UnaryServerInterceptor: enforces (buf.validate.field)
 //     rules declared in license.proto
-//   - interceptor.AdminAuth: Bearer-token gate on LicenseAdminService RPCs
-//     (fail-closed when ADMIN_TOKEN is unset)
+//
+// Authorization lives at the edge (gateway + user/permission system):
+// license-service trusts its internal network boundary and holds no
+// operator-identity notion of its own.
 //
 // license-service is gRPC-only: registerGW is nil and GatewayAddr stays
 // empty. The client-facing HTTP surface is served by a future standalone
@@ -93,7 +95,6 @@ func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 		nil,
 		interceptor.Error,
 		protovalidate_middleware.UnaryServerInterceptor(validator),
-		interceptor.AdminAuth(cfg.AdminToken),
 	)
 
 	return &Server{grpcSrv: grpcSrv, hdl: hdl}, nil

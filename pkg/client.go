@@ -15,8 +15,8 @@ import (
 //	resp, _ := c.Activate(ctx, &licensev1.ActivateRequest{...})
 //	pub, _ := c.ShowPubKey(authCtx, &licensev1.ShowPubKeyRequest{})
 //
-// Admin RPCs additionally require `authorization: Bearer <token>` metadata
-// (see interceptor.AdminAuth).
+// Admin RPCs are internal-network only; authorization is decided at the
+// edge (gateway + user/permission system), not here.
 type Client struct {
 	conn *grpc.ClientConn
 	licensev1.LicenseServiceClient
