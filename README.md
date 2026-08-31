@@ -45,7 +45,7 @@ gRPC 监听 `:19096`（servekit 序列的下一个槽位）。HTTP 面本期不�
 
 ```bash
 cp .env.example .env
-# 编辑 .env：LICENSE_SIGNING_SEED / ADMIN_TOKEN 填值；
+# 编辑 .env：LICENSE_SIGNING_SEED 填值；
 # LICENSE_SERVICE_DATABASE_HOST: postgres -> localhost
 make run            # 需要本机 PostgreSQL + Redis
 ```
