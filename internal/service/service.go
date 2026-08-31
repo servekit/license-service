@@ -99,16 +99,14 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		return nil, err
 	}
 
-	trialDays := int32(14)
-	if cfg.Trial != nil && cfg.Trial.Days > 0 {
-		trialDays = cfg.Trial.Days
+	actOpts, err := resolveDomainOptions(cfg)
+	if err != nil {
+		if cerr := mgr.Stop(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
+		}
+		return nil, err
 	}
-	actOpts := activation.Options{TrialDays: trialDays}
-	if cfg.RateLimit != nil {
-		actOpts.RateKeyPrefix = cfg.RateLimit.KeyPrefix
-		actOpts.RateWindow = cfg.RateLimit.Window
-		actOpts.RateMax = cfg.RateLimit.Max
-	}
+	trialDays := actOpts.TrialDays
 
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside

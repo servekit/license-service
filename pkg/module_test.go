@@ -3,6 +3,7 @@ package pkg_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -26,6 +27,9 @@ func TestNewModule_Ping(t *testing.T) {
 		Server:  &config.ServerConfig{},
 		Signing: &config.SigningConfig{Seed: "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"},
 		Trial:   &config.TrialConfig{Days: 14},
+		// Hand-built configs get no default-tag treatment (that is
+		// configx's job on Load) — every knob must be present.
+		RateLimit: &config.RateLimitConfig{KeyPrefix: "license:rate", Window: time.Minute, Max: 10},
 	},
 		option.WithDB(db),
 		option.WithRedis(rdb),

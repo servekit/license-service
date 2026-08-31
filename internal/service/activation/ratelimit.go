@@ -20,11 +20,6 @@ const (
 	purposeTrial    = "trial"
 )
 
-// defaultRateMax is the per-window quota applied when the config omits it:
-// generous for legitimate flows (heartbeat is 24h; evict-retry costs one
-// extra unit), still a hard stop for hammering.
-const defaultRateMax = 10
-
 // rateLimiter wraps go-common's fixed-window limiter. Semantics: at most Max
 // requests per Window for each (identity, device_token) pair — an
 // anti-abuse guardrail over hammering, deliberately generous for legitimate
@@ -41,18 +36,11 @@ type rateLimiter struct {
 	window time.Duration
 }
 
-// newRateLimiter applies defaults for empty/zero fields (direct-constructed
-// configs and tests may omit them).
+// newRateLimiter builds the limiter from explicit values. Defaults live
+// exclusively in the config default: tags (pkg/config, applied by configx
+// on Load) — the service root fails fast on incomplete configs instead of
+// silently substituting values here.
 func newRateLimiter(rdb *redis.Client, prefix string, window time.Duration, windowMax int64) rateLimiter {
-	if prefix == "" {
-		prefix = "license:rate"
-	}
-	if window <= 0 {
-		window = time.Minute
-	}
-	if windowMax <= 0 {
-		windowMax = defaultRateMax
-	}
 	rule := &ratelimit.Rule{Window: window, Max: windowMax}
 	return rateLimiter{
 		lim: ratelimit.NewRedisLimiter(rdb, &ratelimit.Config{

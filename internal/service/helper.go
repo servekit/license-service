@@ -23,6 +23,7 @@ import (
 	"github.com/servekit/go-common/lifecycle"
 	"github.com/servekit/go-common/redisx"
 
+	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/cert"
 )
 
@@ -64,6 +65,28 @@ func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager)
 		}
 	}))
 	return rdb, nil
+}
+
+// resolveDomainOptions validates the activation/admin knobs and packs the
+// activation Options. Defaults are owned by the config default: tags
+// (configx applies them on Load); this only rejects incomplete configs —
+// a zero Window/Max would make the limiter deny everything (Max=0) or set
+// no TTL (Window=0), so silence would be worse than a startup error.
+func resolveDomainOptions(cfg *config.Config) (activation.Options, error) {
+	if cfg.Trial == nil || cfg.Trial.Days <= 0 {
+		return activation.Options{}, fmt.Errorf("trial.days must be > 0")
+	}
+	if cfg.RateLimit == nil || cfg.RateLimit.KeyPrefix == "" ||
+		cfg.RateLimit.Window <= 0 || cfg.RateLimit.Max <= 0 {
+		return activation.Options{}, fmt.Errorf(
+			"rate_limit config is required (key_prefix / window / max)")
+	}
+	return activation.Options{
+		TrialDays:     cfg.Trial.Days,
+		RateKeyPrefix: cfg.RateLimit.KeyPrefix,
+		RateWindow:    cfg.RateLimit.Window,
+		RateMax:       cfg.RateLimit.Max,
+	}, nil
 }
 
 // resolveSigner builds the Ed25519 cert signer from cfg. The signing seed is

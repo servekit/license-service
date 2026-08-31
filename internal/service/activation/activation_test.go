@@ -33,9 +33,20 @@ type harness struct {
 	rdb *redis.Client
 }
 
+// defaultHarnessOptions mirrors the config default tags (pkg/config) — the
+// domain no longer substitutes defaults itself.
+func defaultHarnessOptions(trialDays int32) Options {
+	return Options{
+		TrialDays:     trialDays,
+		RateKeyPrefix: "license:rate",
+		RateWindow:    time.Minute,
+		RateMax:       10,
+	}
+}
+
 func newHarness(t *testing.T, trialDays int32) *harness {
 	t.Helper()
-	return newHarnessOpts(t, Options{TrialDays: trialDays})
+	return newHarnessOpts(t, defaultHarnessOptions(trialDays))
 }
 
 // newHarnessOpts builds the domain with explicit limiter options so tests
@@ -348,7 +359,9 @@ func TestA10_KeyNotFound(t *testing.T) {
 // A11: rate limit — exhausting the per-window quota is denied with a
 // RetryAfterInfo detail (harness pins Max=1 so the second call exhausts it).
 func TestA11_RateLimited(t *testing.T) {
-	h := newHarnessOpts(t, Options{TrialDays: 14, RateMax: 1})
+	opts := defaultHarnessOptions(14)
+	opts.RateMax = 1 // pin quota 1 so the second call exhausts it
+	h := newHarnessOpts(t, opts)
 	h.seedKey(t, keyA, 3)
 
 	_, err := h.svc.Activate(context.Background(), actReq(keyA, fp1, tok(1), ""))
