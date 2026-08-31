@@ -31,16 +31,79 @@ gRPC 监听 `:19096`（servekit 序列的下一个槽位）。HTTP 面本期不�
 
 ## 配置
 
-`config.example.yaml` 是**纯结构**——每个值都是 `${VAR}` 占位符，由 configx `WithExpandEnv` 从进程环境展开。`.env.example` 是 **docker-compose 取向**的默认值源。
+`config.example.yaml` 是**纯结构**——每个值都是 `${VAR}` 占位符，由 configx `WithExpandEnv` 从进程环境展开；默认值由 config 结构体上的 `default:` 标签提供（代码里不做兜底）。`.env.example` 是 **docker-compose 取向**的默认值源。
 
-**必填项：**
-
-- `LICENSE_SIGNING_KEY_ID` + `LICENSE_SIGNING_SEED` — 签名钥列表的第一项
-  （kid + 64 hex seed，`openssl rand -hex 32` 生成）。**丢 seed = 它签过的全部
-  凭证无法续签**，请保留离线副本；不入库、不入 git、不进日志。
+**必填项只有一个来源：签名钥**（见下节）。其余（DB/Redis/端口/限流）都有合理默认。
 
 > admin 面不做服务端鉴权：license-service 是内网 gRPC 服务，授权由边缘的
 > 用户/权限系统（网关 + user-service）决定，**gRPC 端口与管理路径绝不暴露公网**。
+
+## 签名密钥：生成、配置与保管
+
+先分清系统里的两种"密钥"，别混：
+
+| | 签名钥（本节） | license key |
+|---|---|---|
+| 是什么 | Ed25519 密钥对，服务端给凭证签名 | 发给用户的 `AV1D-XXXXX-…` 激活码 |
+| 存在哪 | 只在部署环境变量 + 进程内存 | 服务端**只存 SHA-256 hash**，明文仅发 key 时出现一次 |
+| 丢了怎样 | 该钥签过的所有凭证**永远无法续签** | 用户拿凭证里的 kid 无法对上，重新发一把即可 |
+
+### 1. 生成
+
+```bash
+openssl rand -hex 32     # 输出 64 个 hex 字符 = 32 字节 Ed25519 seed
+```
+
+kid（key_id）是给这把钥起的名字，随便取但建议有含义（`k1`、`k2027-release`…）；
+凭证里会带上它，客户端按 `{kid → 公钥}` 查表验签。
+
+### 2. 配置（配置文件里只出现占位符，真实值永远在环境变量）
+
+```yaml
+# config.example.yaml —— 结构与占位
+signing:
+  keys:
+    - key_id: ${LICENSE_SIGNING_KEY_ID}
+      seed: ${LICENSE_SIGNING_SEED}
+  sign_key_id: ${LICENSE_SIGNING_SIGN_KEY_ID}   # 单钥可空；多钥必填
+```
+
+```bash
+# .env（本地）/ 部署环境变量 / 密钥管理器（生产）
+LICENSE_SIGNING_KEY_ID=k1
+LICENSE_SIGNING_SEED=9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60
+LICENSE_SIGNING_SIGN_KEY_ID=
+```
+
+多把钥（轮换/按构建分片）就在 `keys:` 下继续加条目，每把一对独立的环境变量，
+并把 `LICENSE_SIGNING_SIGN_KEY_ID` 指到当前用来签发的那把。
+
+### 3. 启动后核对公钥，钉进客户端
+
+```bash
+grpcurl -plaintext localhost:19096 license.v1.LicenseAdminService/ShowPubKey
+# → { "activeKeyId": "k1", "keys": [ { "key_id": "k1", "publicKeyB64": "…" } ] }
+```
+
+把 `{kid, publicKeyB64}` 钉进客户端构建的公钥表（编译期常量）。客户端验签规则：
+凭证里的 `signingKeyId` 查表命中才验，查不到直接拒收（fail-closed）。
+
+### 4. 保管（核心就三句话）
+
+1. **seed 只存在于三个地方**：部署环境变量（运行时）、进程内存（派生用）、
+   **离线副本一份**（密码管理器或纸质，防"丢 seed"灾难）。公钥不是秘密，随便放。
+2. **seed 绝不出现于**：git（`.env` 已 gitignore）、日志、数据库、容器镜像层
+   （compose 从环境注入，镜像里只有占位结构）、聊天记录/工单。
+3. **丢 seed 的后果不可逆**：客户端的凭证到期/心跳时无法续签，等于那批用户
+   全部失效——所以离线副本是上线前的 checklist 项，不是可选项。
+
+### 5. 轮换与泄露（简版，详见 docs/design.md §9.3）
+
+- **常规轮换**：新起一把（生成 → `keys:` 加条目 → 发版客户端公钥表带上新 kid →
+  `LICENSE_SIGNING_SIGN_KEY_ID` 切过去重启）。切之前客户端表里没有该 kid 的话，
+  新凭证会被旧客户端拒收——顺序不能反。
+- **泄露**：服务端停用该钥（从 `keys:` 删除）只是止血一半；真正止血靠客户端发版
+  换掉公钥表。旧版存量凭证用至离线窗口耗尽（订阅 30 天/买断 365 天）。
 
 **本地跑（`make run`）：**
 

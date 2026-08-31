@@ -1,6 +1,5 @@
-// Package interceptor provides license-service gRPC unary interceptors: the
-// xerr→status error mapping with proto details support, and admin Bearer
-// authentication.
+// Package interceptor provides license-service gRPC unary interceptors:
+// the xerr→status error mapping with proto details support.
 package interceptor
 
 import (

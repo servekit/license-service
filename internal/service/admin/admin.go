@@ -1,7 +1,8 @@
 // Package admin implements the LicenseAdminService domain: key issuance and
 // lifecycle, entitlement grants, device management, trial resets, and
-// signing-key introspection. Every RPC is Bearer-gated by the admin
-// interceptor; this package never sees tokens.
+// signing-key introspection. There is no server-side auth here — the gRPC
+// port is internal-network only and authorization is decided at the edge
+// (gateway + user/permission system).
 //
 // Audit rule (design doc §10.4/§11): mutating RPCs log one admin_audit line.
 // Targets use licenseId (keys), device_token (devices), or a truncated

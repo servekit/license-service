@@ -1,7 +1,8 @@
 # license-service deployment topology (design doc §13).
 #
 # Caddy terminates TLS (ACME) on a mainland-reachable node and reverse-proxies
-# ONLY the four client paths. The HTTP face itself is served by a future
+# ONLY the four client paths. (An nginx equivalent is equally fine — see the
+# README deployment notes; only the path allow-list + TLS matter.) The HTTP face itself is served by a future
 # standalone gateway (docs/wire-contract.md) — until that exists, this
 # Caddyfile documents the intended upstream slot. The gRPC port and the admin
 # surface are internal-only (Bearer token on top; never expose them here).

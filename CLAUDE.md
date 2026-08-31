@@ -66,6 +66,9 @@ scaffold 已按生成时的能力开关接好；这里说的是**生成之后**�
 - **日志脱敏**：明文 key / fingerprint_id / remote_addr / payload / signature 绝不进日志；排障用 licenseId + device_token + certId。trial 审计目标用 `sha256(fp)[:16]`。
 - **DB 无软删除是有意的**（spec §4 硬行语义：槽位释放/试用重置/upsert 唯一性），不要"补上" DeletedAt；keys 的吊销是 Status 软状态。
 - **表前缀在 struct 名**（LicenseKey → license_keys），不要加 dbx table_prefix。
+- **签名钥是扁平列表，凭证恒带 kid**：`signing.keys[]`（无默认钥特例），每张凭证的 payload 都带 `signingKeyId`，客户端公钥表 fail-closed。不要恢复"默认钥/kid=null"路径。
+- **配置默认值只在 configx `default:` 标签**：代码不做兜底，不完整配置启动报错（resolveSigner / resolveDomainOptions）。
+- **admin 面无服务端鉴权（有意）**：授权归边缘（网关 + 用户/权限系统）；不要重新引入静态 token。
 
 ## 常用命令
 

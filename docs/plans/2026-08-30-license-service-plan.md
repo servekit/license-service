@@ -5,6 +5,18 @@
 - 输入：`docs/design.md`（原 `servekit/specs/2026-08-26-license-service-design.md`）
 - 执行方式：superpowers:executing-plans / subagent-driven-development 逐任务执行
 
+## 执行后修订（as-built，2026-08-31）
+
+计划 9 个任务全部完成后，评审中又有五处修订（权威记录见 `docs/design.md` 文首修订表）：
+
+1. 限流器从 redisx 直用（60s 1 次 + 409 退还）改为 go-common `ratelimit` 配额窗口
+   （`rate_limit.{key_prefix,window,max}`，默认 10/60s，409 消耗配额）。
+2. 移除 ADMIN_TOKEN / admin 鉴权拦截器——授权归边缘用户系统，唯一边界是网络。
+3. 签名钥改为扁平列表 `signing.keys[]` + `sign_key_id`（无默认钥特例）；凭证恒带
+   `signingKeyId`，golden 向量按新格式重新生成（客户端 cert.rs 需同步）。
+4. 配置默认值唯一来源 = configx `default:` 标签，不完整配置启动 fail-fast。
+5. dbx 嵌套子配置（`database.postgres.*`）对齐新版 go-common。
+
 ## 与 spec 的两处经用户确认的偏差
 
 1. **gRPC-only**：本期不在本服务内启 HTTP 网关（grpcx `registerGW=nil`，`http_addr` 默认空）。

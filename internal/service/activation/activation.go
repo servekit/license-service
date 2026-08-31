@@ -1,7 +1,7 @@
 // Package activation implements the client-facing activation domain: the
 // idempotent Activate converger (first activation, heartbeat, fingerprint
 // rebind, refresh, evict-retry), Deactivate, and keyless TrialStart — plus
-// the per-identity Redis rate limiter with 409-refund semantics.
+// the per-identity quota-window rate limiter (anti-abuse guardrail).
 //
 // Business rules come from docs/design.md §7; the A1–A12 scenario table
 // there is mirrored 1:1 in activation_test.go.

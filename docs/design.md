@@ -24,6 +24,22 @@
 | 售卖模块 | `downloads`、`tools`；`player`/`storage`/`sound`/`environment`/`settings` 永远免费，不进授权体系 |
 | 三模式 | servekit 栈的服务运行形态：standalone gRPC / HTTP gateway / in-process module |
 
+## 修订记录（as-built，2026-08-31）
+
+实施与评审后有以下修订，正文相应位置已标注【修订】；本表为权威差异源：
+
+| # | 原文 | 修订后 | 理由 |
+|---|---|---|---|
+| 1 | §7.5 限速：redisx 直用 INCR/EXPIRE/DECR，每 60s 1 次，409 退还额度 | go-common `ratelimit` 固定窗口配额：每 (身份, device_token) 每窗口 `max` 次（默认 10/60s，`rate_limit.{key_prefix,window,max}` 可配）；409 消耗配额（配额已覆盖 evict 重试） | 限流目的是防滥用而非精确节拍；单发 60s 语义易误杀合法心跳；go-common 组件复用 |
+| 2 | §5.2/§10.2 admin 面 Bearer ADMIN_TOKEN + 部署层双保险 | 移除服务端 token：license-service 为内网 gRPC 服务，授权由边缘用户/权限系统（网关 + user-service RBAC）负责；唯一硬边界是 gRPC 端口/管理路径绝不暴露公网 | 静态共享 token 无身份信息（审计答不了"是谁"），与 servekit 分层不符 |
+| 3 | §9.1 签名钥：默认 seed（kid=null）+ 可选 secondary/kid，signingKeyId 可为 null | **扁平钥列表**：`signing.keys[]`（{key_id, seed}，≥1 条）+ `sign_key_id`（单钥可省，多钥必填）；**每张凭证恒带 signingKeyId**，客户端公钥表 {kid→pubkey} 查不到即 fail-closed，协议中不再存在 kid=null 特例 | 无"默认钥"特例更对称；单钥=列表一项，多钥=加条目；golden 向量已按新格式重生成 |
+| 4 | §13 部署：Caddy TLS 反代 | Caddy 或 nginx 均可（等价配置）；拓扑不变（Caddy/nginx → 未来独立网关 :18086 → 本服务 gRPC :19096） | 部署层选型开放；nginx 原生 IP 限流更强 |
+| 5 | 配置默认值散落代码兜底 | 默认值唯一来源是 configx `default:` 标签；不完整配置启动时 fail-fast（resolveSigner/resolveDomainOptions） | 避免默认值双源漂移 |
+| 6 | dbx 平铺连接键 | go-common 新版 dbx 嵌套子配置（`database.postgres.*` + `driver`） | 对齐当前 go-common |
+
+另：HTTP 网关面（§5 的 google.api.http 注解仍全部保留）由将来的独立网关服务实现，
+本期服务 gRPC-only；网关实现规格见 `docs/wire-contract.md`，对接指南见 README。
+
 ## 0. 与原方案（license-server-golang.md）的差异总表
 
 | # | 维度 | 原方案 | 本方案 | 理由 |
@@ -359,7 +375,7 @@ trials                              // 试用记账，独立于 key 体系
 | `deviceToken` | 设备身份锚；客户端与本地快照比对，Foreign（token 不匹配）即整凭证丢弃 |
 | `fingerprintId` | 签发时上报指纹；Drift（token 同指纹异）触发客户端后台自动重绑 |
 | `issuedAt` | 服务端时钟 RFC3339 UTC **秒精度**；客户端离线容忍计时锚 + 单调水位 |
-| `signingKeyId` | **在被签名 payload 内**（非外层传输字段）。null/缺省=默认钥；非 null 必须命中客户端公钥表，表外 fail-closed 不回落默认钥（防 kid 剥离降级）。旧客户端按"未知字段忽略"用默认钥验签——轮换过渡期旧凭证必须继续用默认钥签发 |
+| `signingKeyId` | 【修订 3】**恒存在**（无默认钥特例）。必须命中客户端公钥表，表外 fail-closed 不回落（防 kid 剥离降级） |
 | `entitlements` | 按模块一条，仅售卖模块；perpetual 的 `expiresAt` 恒 null（客户端强校验，违反即 Malformed 拒收）；subscription/trial 恒非 null；未知模块键客户端保留不拒 |
 
 客户端解析规则：未知顶层字段忽略；未知主版本拒绝。
@@ -381,9 +397,11 @@ trials                              // 试用记账，独立于 key 体系
 
 ### 9.1 注入与备份
 
-- seed（32 字节）以 64 hex 经 `LICENSE_SIGNING_SEED` 环境变量注入（configx `WithExpandEnv`，`config.example.yaml` 值为 `${LICENSE_SIGNING_SEED}`）；不入库、不入 git、不进日志；离线副本必须存在（密码管理器/纸质）——**丢 seed = 全部已发凭证无法续签**，比泄露更不可恢复。
-- 公钥由 seed 派生，`ShowPubKey` RPC 打印 base64 供钉客户端。
-- 轮换预留：`LICENSE_SIGNING_SEED_SECONDARY` + `LICENSE_SIGNING_KEY_ID`（新凭证用命名钥签，`signingKeyId` 进 payload）；过渡期双 seed 并存，旧凭证无需重签，凭证 `v` 不动。
+【修订 3，见文首修订记录】：
+- 签名钥是**扁平列表**：`signing.keys[]`（`{key_id, seed}`，≥1 条）+ `sign_key_id`（当前签发钥；单钥可省略即隐式唯一，多钥必填，指向不存在的 kid 启动报错）。seed（32 字节，64 hex）经环境变量注入（configx `WithExpandEnv`）；不入库、不入 git、不进日志；**离线副本必须存在**（密码管理器/纸质）——丢 seed = 该钥签过的全部凭证无法续签，比泄露更不可恢复。
+- 公钥由 seed 派生，`ShowPubKey` 返回 `{active_key_id, keys[]}`（全部公钥按 kid 排序）供钉客户端公钥表。
+- **每张凭证恒带 `signingKeyId`**（无 null 特例）；客户端公钥表 {kid→pubkey} 查不到即拒收（fail-closed）。
+- 轮换：新钥加 `keys:` 条目 → 发版客户端公钥表带上新 kid → `sign_key_id` 切换重启。顺序不可反（客户端没有该 kid 时新凭证会被拒收）。
 
 ### 9.2 生产密钥策略（已定）
 
@@ -396,7 +414,7 @@ trials                              // 试用记账，独立于 key 体系
 ## 10. 安全考量
 
 1. **TLS**：Caddy 终结（ACME），域名部署境内节点（大陆可达是硬约束：服务不可达 = 30 天后订阅全锁）。gateway 与 gRPC 端口只绑 127.0.0.1/内网；Caddy 只反代四个客户端路径。
-2. **admin 面**：拦截器按 `FullMethod` 前缀匹配 `LicenseAdminService`，要求 `Authorization: Bearer <ADMIN_TOKEN>`（`grpcx.BearerTokenFromCtx`；token 经环境变量注入）；叠加部署层不暴露，双保险。admin token 走配置可轮换。
+2. **admin 面**【修订 2，见文首修订记录】：服务端不做鉴权（原 Bearer ADMIN_TOKEN 方案已移除）。授权由边缘用户/权限系统负责；**唯一硬边界：gRPC 端口与管理路径绝不暴露公网**。
 3. **key 哈希**：库中只有 SHA-256；100 bit 熵离线爆破不可行；明文仅 CreateKey 响应展示一次；`key_prefix`（8 字符）仅供客服比对。
 4. **日志脱敏（硬规则）**：明文 key 绝不进日志（记 licenseId 替代）；fingerprint_id 绝不进日志（哈希过的指纹仍是可跨源对账的机器追踪标识），设备排障用 device_token 与 certId；不记录 remote_addr；`payload`/`signature` 不进日志。
 5. **注入面**：全部查询经 gorm gen dal（参数化）；protovalidate 字段校验前置（uuid/格式/长度），业务校验（key 归一化形状等）400 优先于一切副作用；请求体 4 KiB 上限。
