@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -582,14 +583,19 @@ func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialReque
 
 // ─── signing ────────────────────────────────────────────────────────────────
 
-// ShowPubKey exposes the current signing public key(s) for pinning into the
-// client build.
+// ShowPubKey exposes the signing public keys for pinning into client
+// builds: the default key plus every configured named key, sorted by kid.
 func (s *Service) ShowPubKey(_ context.Context, _ *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
 	resp := &licensev1.ShowPubKeyResponse{PublicKeyB64: s.signer.PublicKeyB64()}
-	if kid := s.signer.KeyID(); kid != "" {
-		resp.KeyId = &kid
-		sec := s.signer.SecondaryPublicKeyB64()
-		resp.SecondaryPublicKeyB64 = &sec
+	named := s.signer.NamedPublicKeys()
+	kids := make([]string, 0, len(named))
+	for kid := range named {
+		kids = append(kids, kid)
+	}
+	sort.Strings(kids)
+	for _, kid := range kids {
+		resp.NamedKeys = append(resp.GetNamedKeys(),
+			&licensev1.SigningKeyInfo{KeyId: kid, PublicKeyB64: named[kid]})
 	}
 	return resp, nil
 }

@@ -1164,14 +1164,15 @@
       "properties": {
         "publicKeyB64": {
           "type": "string",
-          "description": "base64 of the 32-byte Ed25519 public key derived from the default seed."
+          "description": "base64 of the 32-byte Ed25519 public key derived from the default seed\n(kid null — the key every shipped client pins as its fallback)."
         },
-        "keyId": {
-          "type": "string",
-          "description": "Named (secondary) key, present only during a rotation transition."
-        },
-        "secondaryPublicKeyB64": {
-          "type": "string"
+        "namedKeys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SigningKeyInfo"
+          },
+          "description": "All configured named keys, sorted by key_id."
         }
       }
     },
@@ -1186,6 +1187,18 @@
           }
         }
       }
+    },
+    "v1SigningKeyInfo": {
+      "type": "object",
+      "properties": {
+        "keyId": {
+          "type": "string"
+        },
+        "publicKeyB64": {
+          "type": "string"
+        }
+      },
+      "description": "SigningKeyInfo describes one named signing key (rotation / per-build\nshard keys clients pin into their key table)."
     },
     "v1SlotSummary": {
       "type": "object",

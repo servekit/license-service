@@ -57,50 +57,62 @@ func parseTime(s string) (time.Time, error) {
 	return t, nil
 }
 
-// Signer holds the Ed25519 key material: a mandatory default key (signingKeyId
-// null) and an optional named secondary key for rotation transitions.
+// defaultKeyID names the implicit default key (signingKeyId null in cert
+// payloads — the key every shipped client pins as its fallback).
+const defaultKeyID = ""
+
+// Signer holds the Ed25519 key material: a mandatory default key plus any
+// number of named keys (rotation transitions, per-build sharding).
 type Signer struct {
-	priv      ed25519.PrivateKey
-	secondary ed25519.PrivateKey // nil unless rotating
-	keyID     string             // names secondary; empty when not rotating
+	keys   map[string]ed25519.PrivateKey // kid → key; "" is the default
+	active string                        // kid that signs NEW payloads; "" = default
 }
 
-// NewSigner builds a Signer from 64-hex seeds. seed is required;
-// secondaryHex/keyID configure the rotation transition (new certs signed with
-// the named key, old certs keep verifying against the pinned default).
-func NewSigner(seedHex, secondaryHex, keyID string) (*Signer, error) {
-	priv, err := seedFromHex(seedHex)
+// NewSigner builds a Signer from the default 64-hex seed plus optional named
+// keys (kid → 64-hex seed). signKeyID selects which key signs NEW payloads
+// via ActiveKeyID; "" (or absent) keeps the default. signKeyID must reference
+// a configured named key — a dangling active key is a startup error, not a
+// silent fallback.
+func NewSigner(defaultSeedHex string, named map[string]string, signKeyID string) (*Signer, error) {
+	def, err := seedFromHex(defaultSeedHex)
 	if err != nil {
 		return nil, fmt.Errorf("signing seed: %w", err)
 	}
-	s := &Signer{priv: priv}
-	if secondaryHex != "" {
-		if keyID == "" {
-			return nil, fmt.Errorf("signing key_id is required when a secondary seed is configured")
+	keys := map[string]ed25519.PrivateKey{defaultKeyID: def}
+	for kid, seedHex := range named {
+		if kid == "" {
+			return nil, fmt.Errorf("named signing key needs a non-empty key_id")
 		}
-		sec, err := seedFromHex(secondaryHex)
+		k, err := seedFromHex(seedHex)
 		if err != nil {
-			return nil, fmt.Errorf("secondary signing seed: %w", err)
+			return nil, fmt.Errorf("named signing key %q: %w", kid, err)
 		}
-		s.secondary = sec
-		s.keyID = keyID
+		keys[kid] = k
 	}
-	return s, nil
+	if signKeyID != "" {
+		if _, ok := keys[signKeyID]; !ok {
+			return nil, fmt.Errorf("sign_key_id %q has no matching named key", signKeyID)
+		}
+	}
+	return &Signer{keys: keys, active: signKeyID}, nil
 }
 
 // PublicKeyB64 returns the default key's public half, base64 (standard
 // alphabet) — the value operators pin into the client build.
 func (s *Signer) PublicKeyB64() string {
-	return base64.StdEncoding.EncodeToString(pubOf(s.priv))
+	return base64.StdEncoding.EncodeToString(pubOf(s.keys[defaultKeyID]))
 }
 
-// SecondaryPublicKeyB64 returns the named key's public half, or "" when no
-// rotation is configured.
-func (s *Signer) SecondaryPublicKeyB64() string {
-	if s.secondary == nil {
-		return ""
+// NamedPublicKeys returns kid → base64 public key for every named key (the
+// rotation/shard keys clients can pin into their key table).
+func (s *Signer) NamedPublicKeys() map[string]string {
+	out := make(map[string]string, len(s.keys)-1)
+	for kid, k := range s.keys {
+		if kid != defaultKeyID {
+			out[kid] = base64.StdEncoding.EncodeToString(pubOf(k))
+		}
 	}
-	return base64.StdEncoding.EncodeToString(pubOf(s.secondary))
+	return out
 }
 
 // pubOf derives the public half of an ed25519 private key. The conversion
@@ -113,24 +125,30 @@ func pubOf(k ed25519.PrivateKey) ed25519.PublicKey {
 	return pub
 }
 
-// KeyID returns the named-key identifier, or "" when signing with the
-// default key only.
-func (s *Signer) KeyID() string { return s.keyID }
+// ActiveKeyID is the kid stamped onto NEW payloads by the issuance path
+// ("" = sign with the default key, signingKeyId omitted from the payload).
+func (s *Signer) ActiveKeyID() string { return s.active }
 
 // Ready reports whether the signer has usable key material (health check).
-func (s *Signer) Ready() bool { return len(s.priv) == ed25519.PrivateKeySize }
+func (s *Signer) Ready() bool {
+	k, ok := s.keys[defaultKeyID]
+	return ok && len(k) == ed25519.PrivateKeySize
+}
 
 // Sign produces the detached signature over p's canonical bytes. The signing
 // key follows p.SigningKeyID: nil signs with the default key; a non-nil id
-// must match the configured named key (fail-closed — an unresolvable kid is
-// never downgraded to the default key).
+// must match a configured named key (fail-closed — an unresolvable kid is
+// never downgraded to the default key). ActiveKeyID deliberately does NOT
+// apply here: Sign is literal about what the payload claims; choosing the
+// active key for new payloads is the caller's (issuance path's) job.
 func (s *Signer) Sign(p *Payload) (payload, signatureB64 string, err error) {
-	key := s.priv
+	kid := defaultKeyID
 	if p.SigningKeyID != nil {
-		if s.secondary == nil || *p.SigningKeyID != s.keyID {
-			return "", "", fmt.Errorf("signing key %q not configured", *p.SigningKeyID)
-		}
-		key = s.secondary
+		kid = *p.SigningKeyID
+	}
+	key, ok := s.keys[kid]
+	if !ok {
+		return "", "", fmt.Errorf("signing key %q not configured", kid)
 	}
 	data := p.MarshalCanonical()
 	sig := ed25519.Sign(key, data)

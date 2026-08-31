@@ -97,7 +97,14 @@ func resolveSigner(cfg *config.Config) (*cert.Signer, error) {
 	if sc == nil || sc.Seed == "" {
 		return nil, fmt.Errorf("signing.seed is required (set LICENSE_SIGNING_SEED)")
 	}
-	signer, err := cert.NewSigner(sc.Seed, sc.SeedSecondary, sc.KeyID)
+	named := map[string]string{}
+	for _, nk := range sc.Named {
+		if nk == nil {
+			continue
+		}
+		named[nk.KeyID] = nk.Seed
+	}
+	signer, err := cert.NewSigner(sc.Seed, named, sc.SignKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("signer: %w", err)
 	}

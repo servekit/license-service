@@ -7,16 +7,15 @@
 package licensev1
 
 import (
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
-
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
 )
 
 const (
@@ -2728,20 +2727,74 @@ func (*ShowPubKeyRequest) Descriptor() ([]byte, []int) {
 	return file_license_v1_license_proto_rawDescGZIP(), []int{44}
 }
 
+// SigningKeyInfo describes one named signing key (rotation / per-build
+// shard keys clients pin into their key table).
+type SigningKeyInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	KeyId         string                 `protobuf:"bytes,1,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	PublicKeyB64  string                 `protobuf:"bytes,2,opt,name=public_key_b64,json=publicKeyB64,proto3" json:"public_key_b64,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SigningKeyInfo) Reset() {
+	*x = SigningKeyInfo{}
+	mi := &file_license_v1_license_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SigningKeyInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SigningKeyInfo) ProtoMessage() {}
+
+func (x *SigningKeyInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_license_v1_license_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SigningKeyInfo.ProtoReflect.Descriptor instead.
+func (*SigningKeyInfo) Descriptor() ([]byte, []int) {
+	return file_license_v1_license_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *SigningKeyInfo) GetKeyId() string {
+	if x != nil {
+		return x.KeyId
+	}
+	return ""
+}
+
+func (x *SigningKeyInfo) GetPublicKeyB64() string {
+	if x != nil {
+		return x.PublicKeyB64
+	}
+	return ""
+}
+
 type ShowPubKeyResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// base64 of the 32-byte Ed25519 public key derived from the default seed.
+	// base64 of the 32-byte Ed25519 public key derived from the default seed
+	// (kid null — the key every shipped client pins as its fallback).
 	PublicKeyB64 string `protobuf:"bytes,1,opt,name=public_key_b64,json=publicKeyB64,proto3" json:"public_key_b64,omitempty"`
-	// Named (secondary) key, present only during a rotation transition.
-	KeyId                 *string `protobuf:"bytes,2,opt,name=key_id,json=keyId,proto3,oneof" json:"key_id,omitempty"`
-	SecondaryPublicKeyB64 *string `protobuf:"bytes,3,opt,name=secondary_public_key_b64,json=secondaryPublicKeyB64,proto3,oneof" json:"secondary_public_key_b64,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// All configured named keys, sorted by key_id.
+	NamedKeys     []*SigningKeyInfo `protobuf:"bytes,4,rep,name=named_keys,json=namedKeys,proto3" json:"named_keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ShowPubKeyResponse) Reset() {
 	*x = ShowPubKeyResponse{}
-	mi := &file_license_v1_license_proto_msgTypes[45]
+	mi := &file_license_v1_license_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2753,7 +2806,7 @@ func (x *ShowPubKeyResponse) String() string {
 func (*ShowPubKeyResponse) ProtoMessage() {}
 
 func (x *ShowPubKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_license_v1_license_proto_msgTypes[45]
+	mi := &file_license_v1_license_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2766,7 +2819,7 @@ func (x *ShowPubKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShowPubKeyResponse.ProtoReflect.Descriptor instead.
 func (*ShowPubKeyResponse) Descriptor() ([]byte, []int) {
-	return file_license_v1_license_proto_rawDescGZIP(), []int{45}
+	return file_license_v1_license_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ShowPubKeyResponse) GetPublicKeyB64() string {
@@ -2776,18 +2829,11 @@ func (x *ShowPubKeyResponse) GetPublicKeyB64() string {
 	return ""
 }
 
-func (x *ShowPubKeyResponse) GetKeyId() string {
-	if x != nil && x.KeyId != nil {
-		return *x.KeyId
+func (x *ShowPubKeyResponse) GetNamedKeys() []*SigningKeyInfo {
+	if x != nil {
+		return x.NamedKeys
 	}
-	return ""
-}
-
-func (x *ShowPubKeyResponse) GetSecondaryPublicKeyB64() string {
-	if x != nil && x.SecondaryPublicKeyB64 != nil {
-		return *x.SecondaryPublicKeyB64
-	}
-	return ""
+	return nil
 }
 
 var File_license_v1_license_proto protoreflect.FileDescriptor
@@ -2990,13 +3036,14 @@ const file_license_v1_license_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\x01\x18\xf4\x03R\x06reason\"*\n" +
 	"\x12ResetTrialResponse\x12\x14\n" +
 	"\x05reset\x18\x01 \x01(\bR\x05reset\"\x13\n" +
-	"\x11ShowPubKeyRequest\"\xbc\x01\n" +
+	"\x11ShowPubKeyRequest\"M\n" +
+	"\x0eSigningKeyInfo\x12\x15\n" +
+	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12$\n" +
+	"\x0epublic_key_b64\x18\x02 \x01(\tR\fpublicKeyB64\"\xa3\x01\n" +
 	"\x12ShowPubKeyResponse\x12$\n" +
-	"\x0epublic_key_b64\x18\x01 \x01(\tR\fpublicKeyB64\x12\x1a\n" +
-	"\x06key_id\x18\x02 \x01(\tH\x00R\x05keyId\x88\x01\x01\x12<\n" +
-	"\x18secondary_public_key_b64\x18\x03 \x01(\tH\x01R\x15secondaryPublicKeyB64\x88\x01\x01B\t\n" +
-	"\a_key_idB\x1b\n" +
-	"\x19_secondary_public_key_b64*H\n" +
+	"\x0epublic_key_b64\x18\x01 \x01(\tR\fpublicKeyB64\x129\n" +
+	"\n" +
+	"named_keys\x18\x04 \x03(\v2\x1a.license.v1.SigningKeyInfoR\tnamedKeysJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x06key_idR\x18secondary_public_key_b64*H\n" +
 	"\x06Module\x12\x16\n" +
 	"\x12MODULE_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10MODULE_DOWNLOADS\x10\x01\x12\x10\n" +
@@ -3054,7 +3101,7 @@ func file_license_v1_license_proto_rawDescGZIP() []byte {
 }
 
 var file_license_v1_license_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_license_v1_license_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_license_v1_license_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_license_v1_license_proto_goTypes = []any{
 	(Module)(0),                    // 0: license.v1.Module
 	(EntitlementKind)(0),           // 1: license.v1.EntitlementKind
@@ -3104,27 +3151,28 @@ var file_license_v1_license_proto_goTypes = []any{
 	(*ResetTrialRequest)(nil),      // 45: license.v1.ResetTrialRequest
 	(*ResetTrialResponse)(nil),     // 46: license.v1.ResetTrialResponse
 	(*ShowPubKeyRequest)(nil),      // 47: license.v1.ShowPubKeyRequest
-	(*ShowPubKeyResponse)(nil),     // 48: license.v1.ShowPubKeyResponse
-	(*timestamppb.Timestamp)(nil),  // 49: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),          // 50: google.protobuf.Empty
+	(*SigningKeyInfo)(nil),         // 48: license.v1.SigningKeyInfo
+	(*ShowPubKeyResponse)(nil),     // 49: license.v1.ShowPubKeyResponse
+	(*timestamppb.Timestamp)(nil),  // 50: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),          // 51: google.protobuf.Empty
 }
 var file_license_v1_license_proto_depIdxs = []int32{
-	49, // 0: license.v1.DeviceSlotInfo.first_seen_at:type_name -> google.protobuf.Timestamp
-	49, // 1: license.v1.DeviceSlotInfo.last_seen_at:type_name -> google.protobuf.Timestamp
+	50, // 0: license.v1.DeviceSlotInfo.first_seen_at:type_name -> google.protobuf.Timestamp
+	50, // 1: license.v1.DeviceSlotInfo.last_seen_at:type_name -> google.protobuf.Timestamp
 	5,  // 2: license.v1.SlotSummary.devices:type_name -> license.v1.DeviceSlotInfo
 	6,  // 3: license.v1.ActivateResponse.slots:type_name -> license.v1.SlotSummary
 	13, // 4: license.v1.HealthResponse.checks:type_name -> license.v1.HealthChecks
 	5,  // 5: license.v1.SlotLimitInfo.devices:type_name -> license.v1.DeviceSlotInfo
 	0,  // 6: license.v1.EntitlementInput.module:type_name -> license.v1.Module
 	1,  // 7: license.v1.EntitlementInput.kind:type_name -> license.v1.EntitlementKind
-	49, // 8: license.v1.EntitlementInput.expires_at:type_name -> google.protobuf.Timestamp
+	50, // 8: license.v1.EntitlementInput.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 9: license.v1.EntitlementInfo.module:type_name -> license.v1.Module
 	1,  // 10: license.v1.EntitlementInfo.kind:type_name -> license.v1.EntitlementKind
-	49, // 11: license.v1.EntitlementInfo.expires_at:type_name -> google.protobuf.Timestamp
-	49, // 12: license.v1.EntitlementInfo.granted_at:type_name -> google.protobuf.Timestamp
+	50, // 11: license.v1.EntitlementInfo.expires_at:type_name -> google.protobuf.Timestamp
+	50, // 12: license.v1.EntitlementInfo.granted_at:type_name -> google.protobuf.Timestamp
 	2,  // 13: license.v1.KeyInfo.status:type_name -> license.v1.KeyStatus
-	49, // 14: license.v1.KeyInfo.created_at:type_name -> google.protobuf.Timestamp
-	49, // 15: license.v1.KeyInfo.revoked_at:type_name -> google.protobuf.Timestamp
+	50, // 14: license.v1.KeyInfo.created_at:type_name -> google.protobuf.Timestamp
+	50, // 15: license.v1.KeyInfo.revoked_at:type_name -> google.protobuf.Timestamp
 	18, // 16: license.v1.KeyInfo.entitlements:type_name -> license.v1.EntitlementInfo
 	5,  // 17: license.v1.KeyInfo.devices:type_name -> license.v1.DeviceSlotInfo
 	17, // 18: license.v1.CreateKeyRequest.grants:type_name -> license.v1.EntitlementInput
@@ -3137,59 +3185,60 @@ var file_license_v1_license_proto_depIdxs = []int32{
 	19, // 25: license.v1.UnrevokeKeyResponse.key:type_name -> license.v1.KeyInfo
 	0,  // 26: license.v1.GrantModuleRequest.module:type_name -> license.v1.Module
 	1,  // 27: license.v1.GrantModuleRequest.kind:type_name -> license.v1.EntitlementKind
-	49, // 28: license.v1.GrantModuleRequest.expires_at:type_name -> google.protobuf.Timestamp
+	50, // 28: license.v1.GrantModuleRequest.expires_at:type_name -> google.protobuf.Timestamp
 	18, // 29: license.v1.GrantModuleResponse.entitlement:type_name -> license.v1.EntitlementInfo
 	0,  // 30: license.v1.RevokeModuleRequest.module:type_name -> license.v1.Module
 	5,  // 31: license.v1.ListKeyDevicesResponse.devices:type_name -> license.v1.DeviceSlotInfo
 	0,  // 32: license.v1.TrialInfo.module:type_name -> license.v1.Module
-	49, // 33: license.v1.TrialInfo.started_at:type_name -> google.protobuf.Timestamp
-	49, // 34: license.v1.TrialInfo.expires_at:type_name -> google.protobuf.Timestamp
+	50, // 33: license.v1.TrialInfo.started_at:type_name -> google.protobuf.Timestamp
+	50, // 34: license.v1.TrialInfo.expires_at:type_name -> google.protobuf.Timestamp
 	0,  // 35: license.v1.ShowTrialRequest.module:type_name -> license.v1.Module
 	42, // 36: license.v1.ShowTrialResponse.trials:type_name -> license.v1.TrialInfo
 	0,  // 37: license.v1.ResetTrialRequest.module:type_name -> license.v1.Module
-	50, // 38: license.v1.LicenseService.Ping:input_type -> google.protobuf.Empty
-	4,  // 39: license.v1.LicenseService.Activate:input_type -> license.v1.ActivateRequest
-	8,  // 40: license.v1.LicenseService.Deactivate:input_type -> license.v1.DeactivateRequest
-	10, // 41: license.v1.LicenseService.TrialStart:input_type -> license.v1.TrialStartRequest
-	12, // 42: license.v1.LicenseService.Health:input_type -> license.v1.HealthRequest
-	20, // 43: license.v1.LicenseAdminService.CreateKey:input_type -> license.v1.CreateKeyRequest
-	22, // 44: license.v1.LicenseAdminService.ShowKey:input_type -> license.v1.ShowKeyRequest
-	24, // 45: license.v1.LicenseAdminService.ListKeys:input_type -> license.v1.ListKeysRequest
-	26, // 46: license.v1.LicenseAdminService.UpdateKey:input_type -> license.v1.UpdateKeyRequest
-	28, // 47: license.v1.LicenseAdminService.RevokeKey:input_type -> license.v1.RevokeKeyRequest
-	30, // 48: license.v1.LicenseAdminService.UnrevokeKey:input_type -> license.v1.UnrevokeKeyRequest
-	32, // 49: license.v1.LicenseAdminService.DeleteKey:input_type -> license.v1.DeleteKeyRequest
-	34, // 50: license.v1.LicenseAdminService.GrantModule:input_type -> license.v1.GrantModuleRequest
-	36, // 51: license.v1.LicenseAdminService.RevokeModule:input_type -> license.v1.RevokeModuleRequest
-	38, // 52: license.v1.LicenseAdminService.ListKeyDevices:input_type -> license.v1.ListKeyDevicesRequest
-	40, // 53: license.v1.LicenseAdminService.KickDevice:input_type -> license.v1.KickDeviceRequest
-	43, // 54: license.v1.LicenseAdminService.ShowTrial:input_type -> license.v1.ShowTrialRequest
-	45, // 55: license.v1.LicenseAdminService.ResetTrial:input_type -> license.v1.ResetTrialRequest
-	47, // 56: license.v1.LicenseAdminService.ShowPubKey:input_type -> license.v1.ShowPubKeyRequest
-	3,  // 57: license.v1.LicenseService.Ping:output_type -> license.v1.Pong
-	7,  // 58: license.v1.LicenseService.Activate:output_type -> license.v1.ActivateResponse
-	9,  // 59: license.v1.LicenseService.Deactivate:output_type -> license.v1.DeactivateResponse
-	11, // 60: license.v1.LicenseService.TrialStart:output_type -> license.v1.TrialStartResponse
-	14, // 61: license.v1.LicenseService.Health:output_type -> license.v1.HealthResponse
-	21, // 62: license.v1.LicenseAdminService.CreateKey:output_type -> license.v1.CreateKeyResponse
-	23, // 63: license.v1.LicenseAdminService.ShowKey:output_type -> license.v1.ShowKeyResponse
-	25, // 64: license.v1.LicenseAdminService.ListKeys:output_type -> license.v1.ListKeysResponse
-	27, // 65: license.v1.LicenseAdminService.UpdateKey:output_type -> license.v1.UpdateKeyResponse
-	29, // 66: license.v1.LicenseAdminService.RevokeKey:output_type -> license.v1.RevokeKeyResponse
-	31, // 67: license.v1.LicenseAdminService.UnrevokeKey:output_type -> license.v1.UnrevokeKeyResponse
-	33, // 68: license.v1.LicenseAdminService.DeleteKey:output_type -> license.v1.DeleteKeyResponse
-	35, // 69: license.v1.LicenseAdminService.GrantModule:output_type -> license.v1.GrantModuleResponse
-	37, // 70: license.v1.LicenseAdminService.RevokeModule:output_type -> license.v1.RevokeModuleResponse
-	39, // 71: license.v1.LicenseAdminService.ListKeyDevices:output_type -> license.v1.ListKeyDevicesResponse
-	41, // 72: license.v1.LicenseAdminService.KickDevice:output_type -> license.v1.KickDeviceResponse
-	44, // 73: license.v1.LicenseAdminService.ShowTrial:output_type -> license.v1.ShowTrialResponse
-	46, // 74: license.v1.LicenseAdminService.ResetTrial:output_type -> license.v1.ResetTrialResponse
-	48, // 75: license.v1.LicenseAdminService.ShowPubKey:output_type -> license.v1.ShowPubKeyResponse
-	57, // [57:76] is the sub-list for method output_type
-	38, // [38:57] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	48, // 38: license.v1.ShowPubKeyResponse.named_keys:type_name -> license.v1.SigningKeyInfo
+	51, // 39: license.v1.LicenseService.Ping:input_type -> google.protobuf.Empty
+	4,  // 40: license.v1.LicenseService.Activate:input_type -> license.v1.ActivateRequest
+	8,  // 41: license.v1.LicenseService.Deactivate:input_type -> license.v1.DeactivateRequest
+	10, // 42: license.v1.LicenseService.TrialStart:input_type -> license.v1.TrialStartRequest
+	12, // 43: license.v1.LicenseService.Health:input_type -> license.v1.HealthRequest
+	20, // 44: license.v1.LicenseAdminService.CreateKey:input_type -> license.v1.CreateKeyRequest
+	22, // 45: license.v1.LicenseAdminService.ShowKey:input_type -> license.v1.ShowKeyRequest
+	24, // 46: license.v1.LicenseAdminService.ListKeys:input_type -> license.v1.ListKeysRequest
+	26, // 47: license.v1.LicenseAdminService.UpdateKey:input_type -> license.v1.UpdateKeyRequest
+	28, // 48: license.v1.LicenseAdminService.RevokeKey:input_type -> license.v1.RevokeKeyRequest
+	30, // 49: license.v1.LicenseAdminService.UnrevokeKey:input_type -> license.v1.UnrevokeKeyRequest
+	32, // 50: license.v1.LicenseAdminService.DeleteKey:input_type -> license.v1.DeleteKeyRequest
+	34, // 51: license.v1.LicenseAdminService.GrantModule:input_type -> license.v1.GrantModuleRequest
+	36, // 52: license.v1.LicenseAdminService.RevokeModule:input_type -> license.v1.RevokeModuleRequest
+	38, // 53: license.v1.LicenseAdminService.ListKeyDevices:input_type -> license.v1.ListKeyDevicesRequest
+	40, // 54: license.v1.LicenseAdminService.KickDevice:input_type -> license.v1.KickDeviceRequest
+	43, // 55: license.v1.LicenseAdminService.ShowTrial:input_type -> license.v1.ShowTrialRequest
+	45, // 56: license.v1.LicenseAdminService.ResetTrial:input_type -> license.v1.ResetTrialRequest
+	47, // 57: license.v1.LicenseAdminService.ShowPubKey:input_type -> license.v1.ShowPubKeyRequest
+	3,  // 58: license.v1.LicenseService.Ping:output_type -> license.v1.Pong
+	7,  // 59: license.v1.LicenseService.Activate:output_type -> license.v1.ActivateResponse
+	9,  // 60: license.v1.LicenseService.Deactivate:output_type -> license.v1.DeactivateResponse
+	11, // 61: license.v1.LicenseService.TrialStart:output_type -> license.v1.TrialStartResponse
+	14, // 62: license.v1.LicenseService.Health:output_type -> license.v1.HealthResponse
+	21, // 63: license.v1.LicenseAdminService.CreateKey:output_type -> license.v1.CreateKeyResponse
+	23, // 64: license.v1.LicenseAdminService.ShowKey:output_type -> license.v1.ShowKeyResponse
+	25, // 65: license.v1.LicenseAdminService.ListKeys:output_type -> license.v1.ListKeysResponse
+	27, // 66: license.v1.LicenseAdminService.UpdateKey:output_type -> license.v1.UpdateKeyResponse
+	29, // 67: license.v1.LicenseAdminService.RevokeKey:output_type -> license.v1.RevokeKeyResponse
+	31, // 68: license.v1.LicenseAdminService.UnrevokeKey:output_type -> license.v1.UnrevokeKeyResponse
+	33, // 69: license.v1.LicenseAdminService.DeleteKey:output_type -> license.v1.DeleteKeyResponse
+	35, // 70: license.v1.LicenseAdminService.GrantModule:output_type -> license.v1.GrantModuleResponse
+	37, // 71: license.v1.LicenseAdminService.RevokeModule:output_type -> license.v1.RevokeModuleResponse
+	39, // 72: license.v1.LicenseAdminService.ListKeyDevices:output_type -> license.v1.ListKeyDevicesResponse
+	41, // 73: license.v1.LicenseAdminService.KickDevice:output_type -> license.v1.KickDeviceResponse
+	44, // 74: license.v1.LicenseAdminService.ShowTrial:output_type -> license.v1.ShowTrialResponse
+	46, // 75: license.v1.LicenseAdminService.ResetTrial:output_type -> license.v1.ResetTrialResponse
+	49, // 76: license.v1.LicenseAdminService.ShowPubKey:output_type -> license.v1.ShowPubKeyResponse
+	58, // [58:77] is the sub-list for method output_type
+	39, // [39:58] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_license_v1_license_proto_init() }
@@ -3204,14 +3253,13 @@ func file_license_v1_license_proto_init() {
 	file_license_v1_license_proto_msgTypes[29].OneofWrappers = []any{}
 	file_license_v1_license_proto_msgTypes[33].OneofWrappers = []any{}
 	file_license_v1_license_proto_msgTypes[37].OneofWrappers = []any{}
-	file_license_v1_license_proto_msgTypes[45].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_license_v1_license_proto_rawDesc), len(file_license_v1_license_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   46,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

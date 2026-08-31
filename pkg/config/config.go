@@ -49,19 +49,29 @@ type Config struct {
 	Log       *logging.Config
 }
 
-// SigningConfig holds the Ed25519 seed material for license cert signing.
+// SigningConfig holds the Ed25519 seed material for license cert signing:
+// one mandatory default key (kid null) plus any number of named keys.
 // Secrets are injected via environment expansion (${LICENSE_SIGNING_SEED} in
 // config.example.yaml); they are never committed, logged, or stored in the DB.
 type SigningConfig struct {
-	// Seed is the 64-hex primary Ed25519 seed (32 bytes). REQUIRED — service
+	// Seed is the 64-hex default Ed25519 seed (32 bytes). REQUIRED — service
 	// startup fails without it.
 	Seed string
-	// SeedSecondary is the optional 64-hex named-key seed used during key
-	// rotation; it is only used when KeyID is non-empty.
-	SeedSecondary string
-	// KeyID names the secondary key embedded in cert payloads (signingKeyId).
-	// Empty = sign with the default key (signingKeyId null in the payload).
+	// Named holds additional named keys (rotation transitions, per-build
+	// shards). Each needs a non-empty key_id; empty by default.
+	Named []*NamedSigningKey
+	// SignKeyID selects which key signs NEW payloads ("active" key). Empty =
+	// the default key (signingKeyId omitted from payloads). Must reference a
+	// configured named key — flipping this to a named kid is the rotation
+	// cutover; clients that pinned only the default key will reject named-key
+	// certs, so cut over only after the fleet carries the named pubkey.
+	SignKeyID string
+}
+
+// NamedSigningKey is one named signing key.
+type NamedSigningKey struct {
 	KeyID string
+	Seed  string
 }
 
 // TrialConfig configures keyless trial accounting.
