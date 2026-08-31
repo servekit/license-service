@@ -35,12 +35,19 @@ type harness struct {
 
 func newHarness(t *testing.T, trialDays int32) *harness {
 	t.Helper()
+	return newHarnessOpts(t, Options{TrialDays: trialDays})
+}
+
+// newHarnessOpts builds the domain with explicit limiter options so tests
+// can pin a custom prefix/window.
+func newHarnessOpts(t *testing.T, opts Options) *harness {
+	t.Helper()
 	db := dbx.SetupTestDB(t, dbx.DriverPostgres)
 	require.NoError(t, dbx.AutoMigrate(db, models.AllModels()...))
 	rdb := redisx.NewTestClient(t)
 	signer, err := cert.NewSigner(testSeed, "", "")
 	require.NoError(t, err)
-	return &harness{svc: New(db, rdb, signer, trialDays), db: db, rdb: rdb}
+	return &harness{svc: New(db, rdb, signer, opts), db: db, rdb: rdb}
 }
 
 // flush resets the rate-limit window between scenario steps.
@@ -633,4 +640,44 @@ func TestKeyMaterial(t *testing.T) {
 	hash := KeyHash(gennorm)
 	require.Len(t, hash, 64)
 	require.Equal(t, "lk_"+hash[:32], LicenseID(hash))
+}
+
+// Rate-limit configuration takes effect: custom key prefix lands in Redis,
+// the window drives both the Retry-After hint and the block release.
+func TestRateLimitConfigurable(t *testing.T) {
+	h := newHarnessOpts(t, Options{
+		TrialDays:     14,
+		RateKeyPrefix: "lic:rl:test:",
+		RateWindow:    time.Second,
+	})
+	ctx := context.Background()
+	h.seedKey(t, keyA, 3)
+
+	_, err := h.svc.Activate(ctx, actReq(keyA, fp1, tok(1), ""))
+	require.NoError(t, err)
+
+	// Custom prefix visible on the redis key; default prefix unused.
+	keys := h.rdb.Keys(ctx, "lic:rl:test:*").Val()
+	require.Len(t, keys, 1, "limiter key must use the configured prefix")
+	require.Empty(t, h.rdb.Keys(ctx, "license:rate:*").Val(), "default prefix must not be used")
+
+	// Second hit within the window is denied with the window-derived hint.
+	_, err = h.svc.Activate(ctx, actReq(keyA, fp1, tok(1), ""))
+	require.ErrorIs(t, err, xcodes.ErrRateLimited.New())
+	var det *xcodes.Detailed
+	require.ErrorAs(t, err, &det)
+	hinted := false
+	for _, d := range det.Details {
+		if info, ok := d.(*licensev1.RetryAfterInfo); ok {
+			require.EqualValues(t, 1, info.GetSeconds(), "Retry-After derives from the configured window")
+			hinted = true
+		}
+	}
+	require.True(t, hinted)
+
+	// The window lands on the key TTL (real Redis expires it after the
+	// configured duration; miniredis's clock only moves via FastForward, so
+	// the TTL value is asserted instead of a wall-clock sleep).
+	ttl := h.rdb.TTL(ctx, keys[0]).Val()
+	require.Equal(t, time.Second, ttl, "key TTL must equal the configured window")
 }

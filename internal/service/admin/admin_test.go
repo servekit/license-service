@@ -48,7 +48,7 @@ func newHarness(t *testing.T) *harness {
 	require.NoError(t, err)
 	return &harness{
 		admin: admin.New(db, signer, 14),
-		act:   activation.New(db, rdb, signer, 14),
+		act:   activation.New(db, rdb, signer, activation.Options{TrialDays: 14}),
 		db:    db,
 		rdb:   rdb,
 	}

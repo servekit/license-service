@@ -103,6 +103,11 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	if cfg.Trial != nil && cfg.Trial.Days > 0 {
 		trialDays = cfg.Trial.Days
 	}
+	actOpts := activation.Options{TrialDays: trialDays}
+	if cfg.RateLimit != nil {
+		actOpts.RateKeyPrefix = cfg.RateLimit.KeyPrefix
+		actOpts.RateWindow = cfg.RateLimit.Window
+	}
 
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
@@ -113,7 +118,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		db:  db,
 		rdb: rdb,
 
-		activation: activation.New(db, rdb, signer, trialDays),
+		activation: activation.New(db, rdb, signer, actOpts),
 		admin:      admin.New(db, signer, trialDays),
 		health:     health.New(db, signer),
 

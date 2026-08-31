@@ -34,14 +34,26 @@ type Service struct {
 	limiter   rateLimiter
 }
 
+// Options carries the operator-tunable knobs of the activation domain,
+// resolved from config by the service root (defaults applied by the
+// receivers when zero).
+type Options struct {
+	// TrialDays is the keyless trial duration in days.
+	TrialDays int32
+	// RateKeyPrefix is the Redis key prefix for limiter keys.
+	RateKeyPrefix string
+	// RateWindow is the fixed-window duration of the limiter.
+	RateWindow time.Duration
+}
+
 // New constructs the activation domain.
-func New(db *gorm.DB, rdb *redis.Client, signer *cert.Signer, trialDays int32) *Service {
+func New(db *gorm.DB, rdb *redis.Client, signer *cert.Signer, opts Options) *Service {
 	return &Service{
 		db:        db,
 		rdb:       rdb,
 		signer:    signer,
-		trialDays: trialDays,
-		limiter:   rateLimiter{rdb: rdb},
+		trialDays: opts.TrialDays,
+		limiter:   newRateLimiter(rdb, opts.RateKeyPrefix, opts.RateWindow),
 	}
 }
 

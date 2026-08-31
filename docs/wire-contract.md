@@ -66,7 +66,8 @@ gRPC status message 恒为 `"REASON: message"`（在第一个 `": "` 处切分�
 }
 ```
 
-- 429 响应另设 `Retry-After: <秒>` 头（来自 RetryAfterInfo.seconds，恒 60）。
+- 429 响应另设 `Retry-After: <秒>` 头（来自 RetryAfterInfo.seconds = 服务端 `rate_limit.window`
+  配置，默认 60s——网关直接透传，不要自己算）。
 - 5xx 走同一处理器输出 `{"error":{"code":"internal","message":"…"}}`，
   **不泄漏内部细节**（堆栈、SQL、依赖拓扑）。
 - `DeviceSlotInfo.name` 恒 null（预留字段，服务端无名称来源）。

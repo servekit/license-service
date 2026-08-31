@@ -6,6 +6,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/servekit/go-common/configx"
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/logging"
@@ -40,8 +42,11 @@ type Config struct {
 	AdminToken string
 	// Trial configures keyless trial accounting (design doc §7.4).
 	Trial *TrialConfig
-	Cron  *CronConfig
-	Log   *logging.Config
+	// RateLimit configures the per-identity fixed-window limiter
+	// (design doc §7.5).
+	RateLimit *RateLimitConfig
+	Cron      *CronConfig
+	Log       *logging.Config
 }
 
 // SigningConfig holds the Ed25519 seed material for license cert signing.
@@ -64,6 +69,19 @@ type TrialConfig struct {
 	// Days is the trial duration. Trial expiry is derived server-side as
 	// started_at + Days on the server clock; the client never supplies it.
 	Days int32 `default:"14"`
+}
+
+// RateLimitConfig configures the per-identity fixed-window limiter:
+// one request per (key_hash or fingerprint_id, device_token) per Window.
+// This is a factual guardrail over the 24h heartbeat rhythm, not an
+// anti-DDoS boundary.
+type RateLimitConfig struct {
+	// KeyPrefix is the Redis key prefix for limiter keys, following the
+	// go-common convention <module>:<purpose>:.
+	KeyPrefix string `default:"license:rate:"`
+	// Window is the fixed-window duration. The Retry-After hint sent to
+	// clients derives from it.
+	Window time.Duration `default:"60s"`
 }
 
 // ServerConfig holds gRPC and HTTP server addresses.
