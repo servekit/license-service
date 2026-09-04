@@ -10,7 +10,6 @@ package service
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/redis/go-redis/v9"
 
@@ -27,44 +26,18 @@ import (
 	"github.com/servekit/license-service/internal/service/cert"
 )
 
-// resolveDB returns the DB to use. If injected via option.WithDB, ownership
-// stays with the caller and nothing is registered with mgr. If created from
-// cfg, a Stopper is registered so mgr.Stop closes the connection pool.
+// resolveDB returns the DB to use: an injected one as-is (caller owns
+// lifecycle), otherwise built from cfg with a Stopper registered on mgr via
+// dbx.Connect.
 func resolveDB(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*gorm.DB, error) {
-	if o.DB != nil {
-		return o.DB, nil
-	}
-	db, err := dbx.New(cfg.Database)
-	if err != nil {
-		return nil, fmt.Errorf("database: %w", err)
-	}
-	mgr.AddStopper("db", lifecycle.StopFunc(func() {
-		if sqlDB, e := db.DB(); e == nil && sqlDB != nil {
-			if cerr := sqlDB.Close(); cerr != nil {
-				slog.Warn("close db", "error", cerr)
-			}
-		}
-	}))
-	return db, nil
+	return dbx.Connect(cfg.Database, o.DB, mgr)
 }
 
-// resolveRedis returns the Redis client to use. If injected via option, ownership
-// stays with the caller. If created from cfg, a Stopper is registered so mgr.Stop
-// closes the client.
+// resolveRedis returns the Redis client to use: an injected one as-is
+// (caller owns lifecycle), otherwise built from cfg with a Stopper
+// registered on mgr via redisx.Connect.
 func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*redis.Client, error) {
-	if o.Redis != nil {
-		return o.Redis, nil
-	}
-	rdb, err := redisx.New(cfg.Redis)
-	if err != nil {
-		return nil, fmt.Errorf("redis: %w", err)
-	}
-	mgr.AddStopper("redis", lifecycle.StopFunc(func() {
-		if cerr := rdb.Close(); cerr != nil {
-			slog.Warn("close redis", "error", cerr)
-		}
-	}))
-	return rdb, nil
+	return redisx.Connect(cfg.Redis, o.Redis, mgr)
 }
 
 // resolveDomainOptions validates the activation/admin knobs and packs the
