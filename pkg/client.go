@@ -58,95 +58,95 @@ func (c *Client) Close() error { return c.conn.Close() }
 
 // Ping delegates to the remote license-service.
 func (c *Client) Ping(ctx context.Context, in *emptypb.Empty) (*licensev1.Pong, error) {
-	return c.Ping(ctx, in)
+	return c.LicenseService.Ping(ctx, in)
 }
 
 // Activate delegates to the remote license-service.
 func (c *Client) Activate(ctx context.Context, in *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
-	return c.Activate(ctx, in)
+	return c.LicenseService.Activate(ctx, in)
 }
 
 // Deactivate delegates to the remote license-service.
 func (c *Client) Deactivate(ctx context.Context, in *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
-	return c.Deactivate(ctx, in)
+	return c.LicenseService.Deactivate(ctx, in)
 }
 
 // TrialStart delegates to the remote license-service.
 func (c *Client) TrialStart(ctx context.Context, in *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
-	return c.TrialStart(ctx, in)
+	return c.LicenseService.TrialStart(ctx, in)
 }
 
 // Health delegates to the remote license-service.
 func (c *Client) Health(ctx context.Context, in *licensev1.HealthRequest) (*licensev1.HealthResponse, error) {
-	return c.Health(ctx, in)
+	return c.LicenseService.Health(ctx, in)
 }
 
 // CreateKey delegates to the remote license-service.
 func (c *Client) CreateKey(ctx context.Context, in *licensev1.CreateKeyRequest) (*licensev1.CreateKeyResponse, error) {
-	return c.CreateKey(ctx, in)
+	return c.LicenseAdminService.CreateKey(ctx, in)
 }
 
 // ShowKey delegates to the remote license-service.
 func (c *Client) ShowKey(ctx context.Context, in *licensev1.ShowKeyRequest) (*licensev1.ShowKeyResponse, error) {
-	return c.ShowKey(ctx, in)
+	return c.LicenseAdminService.ShowKey(ctx, in)
 }
 
 // ListKeys delegates to the remote license-service.
 func (c *Client) ListKeys(ctx context.Context, in *licensev1.ListKeysRequest) (*licensev1.ListKeysResponse, error) {
-	return c.ListKeys(ctx, in)
+	return c.LicenseAdminService.ListKeys(ctx, in)
 }
 
 // UpdateKey delegates to the remote license-service.
 func (c *Client) UpdateKey(ctx context.Context, in *licensev1.UpdateKeyRequest) (*licensev1.UpdateKeyResponse, error) {
-	return c.UpdateKey(ctx, in)
+	return c.LicenseAdminService.UpdateKey(ctx, in)
 }
 
 // RevokeKey delegates to the remote license-service.
 func (c *Client) RevokeKey(ctx context.Context, in *licensev1.RevokeKeyRequest) (*licensev1.RevokeKeyResponse, error) {
-	return c.RevokeKey(ctx, in)
+	return c.LicenseAdminService.RevokeKey(ctx, in)
 }
 
 // UnrevokeKey delegates to the remote license-service.
 func (c *Client) UnrevokeKey(ctx context.Context, in *licensev1.UnrevokeKeyRequest) (*licensev1.UnrevokeKeyResponse, error) {
-	return c.UnrevokeKey(ctx, in)
+	return c.LicenseAdminService.UnrevokeKey(ctx, in)
 }
 
 // DeleteKey delegates to the remote license-service.
 func (c *Client) DeleteKey(ctx context.Context, in *licensev1.DeleteKeyRequest) (*licensev1.DeleteKeyResponse, error) {
-	return c.DeleteKey(ctx, in)
+	return c.LicenseAdminService.DeleteKey(ctx, in)
 }
 
 // GrantModule delegates to the remote license-service.
 func (c *Client) GrantModule(ctx context.Context, in *licensev1.GrantModuleRequest) (*licensev1.GrantModuleResponse, error) {
-	return c.GrantModule(ctx, in)
+	return c.LicenseAdminService.GrantModule(ctx, in)
 }
 
 // RevokeModule delegates to the remote license-service.
 func (c *Client) RevokeModule(ctx context.Context, in *licensev1.RevokeModuleRequest) (*licensev1.RevokeModuleResponse, error) {
-	return c.RevokeModule(ctx, in)
+	return c.LicenseAdminService.RevokeModule(ctx, in)
 }
 
 // ListKeyDevices delegates to the remote license-service.
 func (c *Client) ListKeyDevices(ctx context.Context, in *licensev1.ListKeyDevicesRequest) (*licensev1.ListKeyDevicesResponse, error) {
-	return c.ListKeyDevices(ctx, in)
+	return c.LicenseAdminService.ListKeyDevices(ctx, in)
 }
 
 // KickDevice delegates to the remote license-service.
 func (c *Client) KickDevice(ctx context.Context, in *licensev1.KickDeviceRequest) (*licensev1.KickDeviceResponse, error) {
-	return c.KickDevice(ctx, in)
+	return c.LicenseAdminService.KickDevice(ctx, in)
 }
 
 // ShowTrial delegates to the remote license-service.
 func (c *Client) ShowTrial(ctx context.Context, in *licensev1.ShowTrialRequest) (*licensev1.ShowTrialResponse, error) {
-	return c.ShowTrial(ctx, in)
+	return c.LicenseAdminService.ShowTrial(ctx, in)
 }
 
 // ResetTrial delegates to the remote license-service.
 func (c *Client) ResetTrial(ctx context.Context, in *licensev1.ResetTrialRequest) (*licensev1.ResetTrialResponse, error) {
-	return c.ResetTrial(ctx, in)
+	return c.LicenseAdminService.ResetTrial(ctx, in)
 }
 
 // ShowPubKey delegates to the remote license-service.
 func (c *Client) ShowPubKey(ctx context.Context, in *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
-	return c.ShowPubKey(ctx, in)
+	return c.LicenseAdminService.ShowPubKey(ctx, in)
 }
