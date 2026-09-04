@@ -14,7 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/servekit/go-common v0.0.0-20260904094002-f2da83b5aa42
+	github.com/servekit/go-common v0.0.0-20260904101207-39630b2b22cc
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20260618152121-87f3d3e198d3
 	google.golang.org/grpc v1.82.1
