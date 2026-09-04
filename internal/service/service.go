@@ -36,7 +36,9 @@ import (
 	"github.com/servekit/license-service/pkg/option"
 
 	"github.com/servekit/go-common/cronx"
+	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/lifecycle"
+	"github.com/servekit/go-common/redisx"
 )
 
 // Service holds license-service business state.
@@ -75,7 +77,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	o := option.Apply(opts...)
 	mgr := lifecycle.NewManager()
 
-	db, err := resolveDB(&o, cfg, mgr)
+	db, err := dbx.Connect(cfg.Database, o.DB, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
@@ -83,7 +85,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		return nil, err
 	}
 
-	rdb, err := resolveRedis(&o, cfg, mgr)
+	rdb, err := redisx.Connect(cfg.Redis, o.Redis, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))

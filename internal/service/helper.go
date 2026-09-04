@@ -11,34 +11,11 @@ package service
 import (
 	"fmt"
 
-	"github.com/redis/go-redis/v9"
-
-	"gorm.io/gorm"
-
 	"github.com/servekit/license-service/pkg/config"
-	"github.com/servekit/license-service/pkg/option"
-
-	"github.com/servekit/go-common/dbx"
-	"github.com/servekit/go-common/lifecycle"
-	"github.com/servekit/go-common/redisx"
 
 	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/cert"
 )
-
-// resolveDB returns the DB to use: an injected one as-is (caller owns
-// lifecycle), otherwise built from cfg with a Stopper registered on mgr via
-// dbx.Connect.
-func resolveDB(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*gorm.DB, error) {
-	return dbx.Connect(cfg.Database, o.DB, mgr)
-}
-
-// resolveRedis returns the Redis client to use: an injected one as-is
-// (caller owns lifecycle), otherwise built from cfg with a Stopper
-// registered on mgr via redisx.Connect.
-func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*redis.Client, error) {
-	return redisx.Connect(cfg.Redis, o.Redis, mgr)
-}
 
 // resolveDomainOptions validates the activation/admin knobs and packs the
 // activation Options. Defaults are owned by the config default: tags
