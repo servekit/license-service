@@ -2,6 +2,10 @@
 
 - 日期：2026-08-26
 - 状态：已评审（brainstorming 定稿），待实施
+- 修订（2026-09-05）：servekit 后端服务统一 gRPC-only 化。本方案中"全 RPC 带
+  `google.api.http` 注解 / swagger 自动生成"的表述已过时——注解与 swagger 产物
+  已移除，HTTP 面的路由契约改由 `docs/wire-contract.md` §0 的路由表承载，由
+  网关实现。本文其余部分仍有效
 - 读者：服务端实现者、aividlab Rust 客户端 license 模块维护者、运维
 - 仓库：`git@github.com:servekit/license-service.git`（module `github.com/servekit/license-service`）
 - 关联文档：
@@ -33,7 +37,7 @@
 | 1 | §7.5 限速：redisx 直用 INCR/EXPIRE/DECR，每 60s 1 次，409 退还额度 | go-common `ratelimit` 固定窗口配额：每 (身份, device_token) 每窗口 `max` 次（默认 10/60s，`rate_limit.{key_prefix,window,max}` 可配）；409 消耗配额（配额已覆盖 evict 重试） | 限流目的是防滥用而非精确节拍；单发 60s 语义易误杀合法心跳；go-common 组件复用 |
 | 2 | §5.2/§10.2 admin 面 Bearer ADMIN_TOKEN + 部署层双保险 | 移除服务端 token：license-service 为内网 gRPC 服务，授权由边缘用户/权限系统（网关 + user-service RBAC）负责；唯一硬边界是 gRPC 端口/管理路径绝不暴露公网 | 静态共享 token 无身份信息（审计答不了"是谁"），与 servekit 分层不符 |
 | 3 | §9.1 签名钥：默认 seed（kid=null）+ 可选 secondary/kid，signingKeyId 可为 null | **扁平钥列表**：`signing.keys[]`（{key_id, seed}，≥1 条）+ `sign_key_id`（单钥可省，多钥必填）；**每张凭证恒带 signingKeyId**，客户端公钥表 {kid→pubkey} 查不到即 fail-closed，协议中不再存在 kid=null 特例 | 无"默认钥"特例更对称；单钥=列表一项，多钥=加条目；golden 向量已按新格式重生成 |
-| 4 | §13 部署：Caddy TLS 反代 | Caddy 或 nginx 均可（等价配置）；拓扑不变（Caddy/nginx → 未来独立网关 :18086 → 本服务 gRPC :19096） | 部署层选型开放；nginx 原生 IP 限流更强 |
+| 4 | §13 部署：Caddy TLS 反代 | Caddy 或 nginx 均可（等价配置）；拓扑不变（Caddy/nginx → 未来独立网关 → 本服务 gRPC :19096） | 部署层选型开放；nginx 原生 IP 限流更强 |
 | 5 | 配置默认值散落代码兜底 | 默认值唯一来源是 configx `default:` 标签；不完整配置启动时 fail-fast（resolveSigner/resolveDomainOptions） | 避免默认值双源漂移 |
 | 6 | dbx 平铺连接键 | go-common 新版 dbx 嵌套子配置（`database.postgres.*` + `driver`） | 对齐当前 go-common |
 

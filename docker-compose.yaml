@@ -13,7 +13,6 @@ services:
         GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     environment:
       - LICENSE_SERVICE_SERVER_GRPC_ADDR=${LICENSE_SERVICE_SERVER_GRPC_ADDR:-:19096}
-      - LICENSE_SERVICE_SERVER_HTTP_ADDR=${LICENSE_SERVICE_SERVER_HTTP_ADDR:-:18086}
       - LICENSE_SERVICE_LOG_LEVEL=${LICENSE_SERVICE_LOG_LEVEL:-info}
       - LICENSE_SERVICE_DATABASE_HOST=${LICENSE_SERVICE_DATABASE_HOST:-postgres}
       - LICENSE_SERVICE_DATABASE_PORT=${LICENSE_SERVICE_DATABASE_PORT:-5432}
@@ -41,7 +40,6 @@ services:
       - VAR=${VAR:-}
     ports:
       - "${HOST_GRPC_PORT:-19096}:19096"
-      - "${HOST_HTTP_PORT:-18086}:18086"
     depends_on:
       postgres:
         condition: service_healthy

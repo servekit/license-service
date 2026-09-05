@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	commonv1 "github.com/servekit/api/gen/go/common/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -57,7 +58,7 @@ func NewClient(addr string, opts ...grpc.DialOption) (*Client, error) {
 func (c *Client) Close() error { return c.conn.Close() }
 
 // Ping delegates to the remote license-service.
-func (c *Client) Ping(ctx context.Context, in *emptypb.Empty) (*licensev1.Pong, error) {
+func (c *Client) Ping(ctx context.Context, in *emptypb.Empty) (*commonv1.Pong, error) {
 	return c.LicenseService.Ping(ctx, in)
 }
 

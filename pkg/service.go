@@ -1,7 +1,7 @@
 package pkg
 
 import (
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 )
 
 // Service is how a consumer holds license-service regardless of backend: the

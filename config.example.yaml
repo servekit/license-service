@@ -9,7 +9,6 @@
 
 server:
   grpc_addr: ${LICENSE_SERVICE_SERVER_GRPC_ADDR}
-  http_addr: ${LICENSE_SERVICE_SERVER_HTTP_ADDR}
 
 database:
   driver: ${LICENSE_SERVICE_DATABASE_DRIVER}

@@ -19,7 +19,7 @@
 ```bash
 make build       # 产出 bin/license-service
 make run         # 本地启动（auto-cp config.example.yaml -> config.yaml）
-make regenerate  # = proto + generate + tidy（改 proto/model 后跑）
+make regenerate  # = generate + tidy（改 model 后跑；proto 变更去 ../api 仓库）
 make migrate     # 执行数据库迁移
 make test        # 测试（race + coverage；DB 测试需 Docker 起 testcontainer）
 make lint        # golangci-lint
@@ -27,7 +27,7 @@ make docker-up   # 起完整 docker 栈（license + postgres + redis）
 ```
 
 gRPC 监听 `:19096`（servekit 序列的下一个槽位）。HTTP 面本期不存在：
-`server.http_addr` 默认空 = 不启网关；`:18086` 为未来独立网关预留。
+`server` 只有 `grpc_addr` —— 纯 gRPC，不监听 HTTP；对外 HTTP 面由网关提供（路由契约见 `docs/wire-contract.md`）。
 
 ## 配置
 
@@ -145,7 +145,7 @@ HTTP 调用等独立网关上线后经其发出（Caddy/nginx → 网关 → 本
 |---|---|---|
 | **A. gRPC 客户端**（推荐） | 网关是独立进程/独立仓库 | `pkg.NewClient` 一行拨号，返回同时内嵌 `LicenseServiceClient` 与 `LicenseAdminServiceClient` 的客户端 |
 | B. in-process module | 网关也是 Go，想省一跳网络 | `pkg.NewModule` 直接拿 Handler 同进程调用，资源由网关注入并持有生命周期 |
-| C. 其他语言 stub | 非 Go 网关 | 用 buf 从 `api/proto/license/v1/license.proto` 生成对应语言的 gRPC stub（`buf generate` 加对应插件） |
+| C. 其他语言 stub | 非 Go 网关 | 用 buf 从契约仓库 `../api` 的 license/v1 生成对应语言的 gRPC stub（api 仓库的 buf.gen.<lang>.yaml） |
 
 ### 方式 A：gRPC 客户端
 

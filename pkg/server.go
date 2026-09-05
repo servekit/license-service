@@ -14,7 +14,7 @@ import (
 	"github.com/servekit/go-common/grpcx"
 	"github.com/servekit/go-common/signalx"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/service"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/handler"
@@ -61,10 +61,10 @@ func WithServiceOptions(opts ...option.Option) ServerOption {
 // license-service trusts its internal network boundary and holds no
 // operator-identity notion of its own.
 //
-// license-service is gRPC-only: registerGW is nil and GatewayAddr stays
-// empty. The client-facing HTTP surface is served by a future standalone
-// gateway that routes per the google.api.http annotations in license.proto
-// (see docs/wire-contract.md); :18086 is reserved for it.
+// license-service is gRPC-only: registerGW is nil and no HTTP gateway runs
+// in-process. The client-facing HTTP surface is served by the gateway
+// (testkit today; a standalone gateway later) — the gateway owns its own
+// HTTP route mapping (see docs/wire-contract.md).
 func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 	var so serverOptions
 	for _, opt := range opts {
@@ -84,10 +84,7 @@ func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 	}
 
 	grpcSrv := grpcx.New(
-		&grpcx.ServerConfig{
-			GRPCAddr:    cfg.Server.GRPCAddr,
-			GatewayAddr: cfg.Server.HTTPAddr,
-		},
+		&grpcx.ServerConfig{GRPCAddr: cfg.Server.GRPCAddr},
 		func(gs *grpc.Server) {
 			licensev1.RegisterLicenseServiceServer(gs, hdl)
 			licensev1.RegisterLicenseAdminServiceServer(gs, hdl)

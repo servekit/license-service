@@ -93,16 +93,11 @@ type RateLimitConfig struct {
 	Max int64 `default:"10"`
 }
 
-// ServerConfig holds gRPC and HTTP server addresses.
+// ServerConfig holds the gRPC server address.
 type ServerConfig struct {
 	// GRPCAddr defaults to ":19096" — the servekit fleet port sequence
 	// (gid 19091 … user 19094, testkit 19095).
 	GRPCAddr string `default:":19096"`
-	// HTTPAddr is the grpc-gateway port; empty disables HTTP. license-service
-	// is gRPC-only this iteration — the client-facing HTTP face is served by a
-	// future standalone gateway, so the default is empty and registerGW stays
-	// nil in pkg/server.go. :18086 is reserved for that gateway.
-	HTTPAddr string `default:""`
 }
 
 // CronConfig configures the internal cronx instance used by jobs.Scheduler.

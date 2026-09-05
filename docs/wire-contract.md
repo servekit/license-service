@@ -1,12 +1,36 @@
 # license-service HTTP 网关契约（wire contract）
 
-- 日期：2026-08-30
+- 日期：2026-08-30（2026-09-05 修订：license-service 移除 proto `google.api.http`
+  注解与 swagger 产物，改为纯 gRPC；HTTP 路由表由本文件承载）
 - 读者：未来独立 HTTP 网关（grpc-gateway 或等价实现）的维护者
 - 事实源：`docs/design.md` §5–§7；本文件是其实施规格的可执行摘要
-- 状态：license-service 本期以纯 gRPC 交付（`:19096`）；本契约描述网关必须提供的
-  HTTP 面。路由与请求/响应形状以 `api/proto/license/v1/license.proto` 的
-  `google.api.http` 注解与 `api/swagger/license/v1/license.swagger.json` 为准，
-  本文件补充 proto 无法表达的**行为性**要求。
+- 状态：license-service 以纯 gRPC 交付（`:19096`）；本契约描述网关必须提供的
+  HTTP 面。路由映射**归网关所有**（网关自己的注解/路由配置），后端 proto 不再
+  预留；本文件记录路径与 proto 无法表达的**行为性**要求。
+
+## 0. HTTP 路由表（原 proto 注解路径，网关照此实现）
+
+| Method | Path | RPC | Body |
+|---|---|---|---|
+| GET | `/ping` | Ping | — |
+| POST | `/v1/activate` | Activate | `*` |
+| POST | `/v1/deactivate` | Deactivate | `*` |
+| POST | `/v1/trial/start` | TrialStart | `*` |
+| GET | `/healthz` | Health | — |
+| POST | `/v1/admin/keys` | CreateKey | `*` |
+| GET | `/v1/admin/keys/{key_id}` | ShowKey | — |
+| GET | `/v1/admin/keys` | ListKeys | — |
+| PATCH | `/v1/admin/keys/{key_id}` | UpdateKey | `*` |
+| POST | `/v1/admin/keys/{key_id}/revoke` | RevokeKey | `*` |
+| POST | `/v1/admin/keys/{key_id}/unrevoke` | UnrevokeKey | `*` |
+| DELETE | `/v1/admin/keys/{key_id}` | DeleteKey | — |
+| PUT | `/v1/admin/keys/{key_id}/grants/{module}` | GrantModule | `*` |
+| DELETE | `/v1/admin/keys/{key_id}/grants/{module}` | RevokeModule | — |
+| GET | `/v1/admin/keys/{key_id}/devices` | ListKeyDevices | — |
+| DELETE | `/v1/admin/keys/{key_id}/devices/{device_token}` | KickDevice | — |
+| GET | `/v1/admin/trials/{fingerprint_id}` | ShowTrial | — |
+| POST | `/v1/admin/trials/{fingerprint_id}/{module}/reset` | ResetTrial | `*` |
+| GET | `/v1/admin/signing/pubkey` | ShowPubKey | — |
 
 ## 1. 拓扑
 
@@ -14,7 +38,7 @@
 Caddy（境内，TLS/ACME，license.aividlab.app 占位域名）
   │ 只放行: /v1/activate /v1/deactivate /v1/trial/start /healthz
   ▼
-独立 HTTP 网关（本期未建；预留 :18086）
+独立 HTTP 网关（本期未建）
   │ gRPC（内网）                    ┌────────────────┐
   ▼                                 │ Postgres Redis │
 license-service :19096 (gRPC-only) └────────────────┘

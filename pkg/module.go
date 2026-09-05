@@ -3,7 +3,7 @@ package pkg
 import (
 	"gorm.io/gorm"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/service"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/handler"

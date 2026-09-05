@@ -15,7 +15,7 @@ import (
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/redisx"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/admin"
 	"github.com/servekit/license-service/internal/service/cert"

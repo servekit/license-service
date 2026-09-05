@@ -25,7 +25,7 @@ import (
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/redisx"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/service/cert"
 	"github.com/servekit/license-service/internal/store/models"
 	"github.com/servekit/license-service/pkg"
@@ -66,7 +66,7 @@ func startStack(t *testing.T) *stack {
 
 	grpcAddr := freePort(t)
 	cfg := &config.Config{
-		Server:  &config.ServerConfig{GRPCAddr: grpcAddr, HTTPAddr: ""},
+		Server:  &config.ServerConfig{GRPCAddr: grpcAddr},
 		Signing: &config.SigningConfig{Keys: []*config.SigningKey{{KeyID: "k1", Seed: testSeed}}},
 		Trial:   &config.TrialConfig{Days: 14},
 		// Quota 1 pins the 429 path within a single test flow.

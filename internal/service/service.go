@@ -25,7 +25,8 @@ import (
 
 	"gorm.io/gorm"
 
-	licensev1 "github.com/servekit/license-service/gen/license/v1"
+	commonv1 "github.com/servekit/api/gen/go/common/v1"
+	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/jobs"
 	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/admin"
@@ -146,9 +147,9 @@ func (s *Service) Stop() error { return s.mgr.Stop() }
 // least one HTTP endpoint and pkg/server.go can always register the handler.
 // Returns only public, non-sensitive info — never internal addresses, env,
 // secrets, or dependency topology.
-func (s *Service) Ping(_ context.Context) (*licensev1.Pong, error) {
+func (s *Service) Ping(_ context.Context) (*commonv1.Pong, error) {
 	v := version.Get()
-	return &licensev1.Pong{
+	return &commonv1.Pong{
 		Service:   "license-service",
 		Version:   v.Version,
 		GitCommit: v.GitCommit,
