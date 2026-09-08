@@ -50,7 +50,7 @@ func WithServiceOptions(opts ...option.Option) ServerOption {
 
 // NewServer constructs a Server with all dependencies wired.
 //
-// The gRPC server runs with two interceptors in order:
+// The gRPC server runs with three interceptors in order:
 //   - interceptor.Error: maps xerr-wrapped service errors to gRPC status
 //     codes ("REASON: message" preserved) and promotes xcodes.Detailed
 //     proto details (SlotLimitInfo / RetryAfterInfo) into the status
@@ -91,6 +91,7 @@ func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 		},
 		nil,
 		interceptor.Error,
+		grpcx.TrustedActorUnary(),
 		protovalidate_middleware.UnaryServerInterceptor(validator),
 	)
 
