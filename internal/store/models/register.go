@@ -20,6 +20,7 @@ func AllModels() []any {
 		&LicenseEntitlement{},
 		&LicenseDevice{},
 		&LicenseTrial{},
+		&LicenseApp{},
 	}
 }
 

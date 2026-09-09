@@ -24,3 +24,15 @@ var (
 	// (key_hash or fingerprint_id, device_token).
 	ErrRateLimited = xerr.New("RATE_LIMITED", xerr.CategoryTooManyRequests, 429, "too many requests, retry later")
 )
+
+// App-registry error codes (calling-application credentials, messaging/
+// storage platform app pattern).
+var (
+	// ErrAppNotFound: app_key lookup returned nothing.
+	ErrAppNotFound = xerr.New("APP_NOT_FOUND", xerr.CategoryNotFound, 404, "app not found")
+	// ErrAppExists: caller-supplied app_key collides with a live app.
+	ErrAppExists = xerr.New("APP_EXISTS", xerr.CategoryConflict, 409, "app already exists")
+	// ErrAppUnauthorized: missing app credentials, unknown/disabled app, or
+	// bad secret on a data-plane call.
+	ErrAppUnauthorized = xerr.New("APP_UNAUTHORIZED", xerr.CategoryUnauthorized, 401, "app missing, disabled, or bad credentials")
+)

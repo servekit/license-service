@@ -40,6 +40,7 @@ import (
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/lifecycle"
 	"github.com/servekit/go-common/redisx"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // Service holds license-service business state.
@@ -164,18 +165,30 @@ func (s *Service) Ping(_ context.Context) (*commonv1.Pong, error) {
 
 // --- facade methods (one per RPC, delegate to subpackage) ---
 
-// Activate delegates to the activation domain (A1–A12 converger).
+// Activate delegates to the activation domain (A1–A12 converger). The
+// calling app must present valid credentials (requireApp — fail closed).
 func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
+	if _, err := s.requireApp(ctx); err != nil {
+		return nil, err
+	}
 	return s.activation.Activate(ctx, req)
 }
 
 // Deactivate delegates to the activation domain (idempotent slot release).
+// The calling app must present valid credentials (requireApp — fail closed).
 func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
+	if _, err := s.requireApp(ctx); err != nil {
+		return nil, err
+	}
 	return s.activation.Deactivate(ctx, req)
 }
 
 // TrialStart delegates to the activation domain (keyless trial ledger).
+// The calling app must present valid credentials (requireApp — fail closed).
 func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
+	if _, err := s.requireApp(ctx); err != nil {
+		return nil, err
+	}
 	return s.activation.TrialStart(ctx, req)
 }
 
@@ -254,6 +267,38 @@ func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialReque
 // ShowPubKey exposes the signing public key(s) for client pinning.
 func (s *Service) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
 	return s.admin.ShowPubKey(ctx, req)
+}
+
+// --- app-registry facades (calling applications; message-service pattern) ---
+
+// CreateApp registers a calling app; the minted secret rides the response.
+func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
+	return s.admin.CreateApp(ctx, req)
+}
+
+// GetApp returns one app by app_key.
+func (s *Service) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
+	return s.admin.GetApp(ctx, req)
+}
+
+// UpdateApp edits mutable fields (name, disabled); app_key is immutable.
+func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
+	return s.admin.UpdateApp(ctx, req)
+}
+
+// RotateAppSecret mints a new app secret.
+func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
+	return s.admin.RotateAppSecret(ctx, req)
+}
+
+// ListApps lists all calling apps (no paging — low cardinality).
+func (s *Service) ListApps(ctx context.Context, req *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
+	return s.admin.ListApps(ctx, req)
+}
+
+// DeleteApp removes the app row (hard delete).
+func (s *Service) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
+	return s.admin.DeleteApp(ctx, req)
 }
 
 // Resource resolve helpers (resolveDB / resolveRedis)

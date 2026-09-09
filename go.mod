@@ -2,7 +2,6 @@ module github.com/servekit/license-service
 
 go 1.26.6
 
-
 require (
 	buf.build/go/protovalidate v1.2.0
 	github.com/google/uuid v1.6.0

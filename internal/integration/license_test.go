@@ -46,6 +46,9 @@ type stack struct {
 	client *pkg.Client
 	db     *gorm.DB
 	rdb    *redis.Client
+	// appCtx carries calling-app credentials for the client surface
+	// (Activate/Deactivate/TrialStart verify them, fail-closed).
+	appCtx context.Context
 }
 
 func freePort(t *testing.T) string {
@@ -97,7 +100,15 @@ func startStack(t *testing.T) *stack {
 		require.True(t, time.Now().Before(deadline), "gRPC server never came up")
 	}
 
-	return &stack{client: client, db: db, rdb: rdb}
+	// The client surface requires calling-app credentials (x-app-key /
+	// x-app-secret) — seed one like an embedder would.
+	const appKey, appSecret = "testkit", "lic_itest_secret"
+	require.NoError(t, db.Create(&models.LicenseApp{
+		AppKey: appKey, AppSecret: appSecret, Name: "integration",
+	}).Error)
+	appCtx := pkg.WithApp(context.Background(), appKey, appSecret)
+
+	return &stack{client: client, db: db, rdb: rdb, appCtx: appCtx}
 }
 
 // seedKeyWithSlots creates a key via the admin surface and activates slots
@@ -105,7 +116,7 @@ func startStack(t *testing.T) *stack {
 func (s *stack) fillSlots(t *testing.T, key, plaintext string, slots int) {
 	t.Helper()
 	for i := 1; i <= slots; i++ {
-		_, err := s.client.Activate(context.Background(), &licensev1.ActivateRequest{
+		_, err := s.client.Activate(s.appCtx, &licensev1.ActivateRequest{
 			Key: plaintext, FingerprintId: fingerprint, DeviceToken: tok(i),
 		})
 		require.NoError(t, err)
@@ -119,7 +130,7 @@ func (s *stack) fillSlots(t *testing.T, key, plaintext string, slots int) {
 // details.
 func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	s := startStack(t)
-	ctx := context.Background()
+	ctx := s.appCtx
 
 	// 400 BAD_KEY_FORMAT → InvalidArgument.
 	_, err := s.client.Activate(ctx, &licensev1.ActivateRequest{
@@ -199,7 +210,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 // verifies against the pinned test public key; both key field names work.
 func TestPayloadContract(t *testing.T) {
 	s := startStack(t)
-	ctx := context.Background()
+	ctx := s.appCtx
 
 	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
@@ -238,7 +249,7 @@ func TestPayloadContract(t *testing.T) {
 // only hard rule is that the gRPC port never leaves the internal network.
 func TestAdminFromInternalNetwork(t *testing.T) {
 	s := startStack(t)
-	ctx := context.Background()
+	ctx := s.appCtx
 
 	_, err := s.client.CreateKey(ctx, &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
@@ -253,7 +264,7 @@ func TestAdminFromInternalNetwork(t *testing.T) {
 // TestHealth: both checks green → SERVING; a dead DB flips to Unavailable.
 func TestHealth(t *testing.T) {
 	s := startStack(t)
-	ctx := context.Background()
+	ctx := s.appCtx
 
 	resp, err := s.client.Health(ctx, &licensev1.HealthRequest{})
 	require.NoError(t, err)

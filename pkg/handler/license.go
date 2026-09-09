@@ -148,3 +148,35 @@ func (h *Handler) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyReque
 func (h *Handler) Health(ctx context.Context, req *licensev1.HealthRequest) (*licensev1.HealthResponse, error) {
 	return h.svc.Health(ctx, req)
 }
+
+// --- app-registry shims (calling applications; message-service pattern) ---
+
+// CreateApp registers a calling app; the minted secret rides the response.
+func (h *Handler) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
+	return h.svc.CreateApp(ctx, req)
+}
+
+// GetApp returns one app by app_key.
+func (h *Handler) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
+	return h.svc.GetApp(ctx, req)
+}
+
+// UpdateApp edits mutable fields (name, disabled); app_key is immutable.
+func (h *Handler) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
+	return h.svc.UpdateApp(ctx, req)
+}
+
+// RotateAppSecret mints a new app secret.
+func (h *Handler) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
+	return h.svc.RotateAppSecret(ctx, req)
+}
+
+// ListApps lists all calling apps (no paging — low cardinality).
+func (h *Handler) ListApps(ctx context.Context, req *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
+	return h.svc.ListApps(ctx, req)
+}
+
+// DeleteApp removes the app row (hard delete).
+func (h *Handler) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
+	return h.svc.DeleteApp(ctx, req)
+}
