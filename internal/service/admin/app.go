@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"gorm.io/gorm"
 
 	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/store/dal"
@@ -51,6 +51,11 @@ func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest
 		AppKey:    appKey,
 		AppSecret: secret,
 		Name:      req.GetName(),
+		// Phase ③ window mapping: the migration backfill writes
+		// tenant_key = app_key literal, so admin-created rows stamp the same
+		// value (the trusted lazy upsert and legacy conversion both resolve
+		// through it; T10 总装 remaps to ten_* keys).
+		TenantKey: models.TenantKeyPtr(appKey),
 	}
 	if err := dal.CreateApp(ctx, s.db, app); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)

@@ -293,3 +293,59 @@ func TestProtovalidateOnTheWire(t *testing.T) {
 	})
 	require.Equal(t, codes.InvalidArgument, status.Convert(err).Code())
 }
+
+// TestDataPlaneDualStackGate: phase ③ D-③1 through the real gRPC wire —
+// trusted x-tenant-key lazily creates the gate row (license data itself is
+// global; the row is the only per-tenant artifact), smuggled legacy
+// credentials under a trusted key are ignored, legacy direct stays valid,
+// and no credentials fail closed.
+func TestDataPlaneDualStackGate(t *testing.T) {
+	s := startStack(t)
+
+	// None: no credentials on the wire at all.
+	_, err := s.client.Activate(context.Background(), &licensev1.ActivateRequest{
+		Key: keyShape, FingerprintId: fingerprint, DeviceToken: tok(1),
+	})
+	require.Equal(t, codes.Unauthenticated, status.Convert(err).Code())
+
+	// Trusted first sight: a never-seen tenant key passes the gate and its
+	// gate row is lazily created exactly once.
+	trusted := pkg.WithTenant(context.Background(), "ten_itest000001")
+	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
+		Grants: []*licensev1.EntitlementInput{
+			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.client.Activate(trusted, &licensev1.ActivateRequest{
+		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(1),
+	})
+	require.NoError(t, err, "trusted tenant key passes the gate on first sight")
+
+	var gate models.LicenseApp
+	require.NoError(t, s.db.Where("app_key = ?", "ten_itest000001").First(&gate).Error)
+	require.Equal(t, "ten_itest000001", models.TenantKeyOf(gate.TenantKey), "lazy gate row carries the mapping")
+
+	// TrialStart through the same trusted gate (keyless).
+	require.NoError(t, s.rdb.FlushAll(context.Background()).Err())
+	_, err = s.client.TrialStart(trusted, &licensev1.TrialStartRequest{
+		Module: "tools", FingerprintId: fingerprint, DeviceToken: tok(2),
+	})
+	require.NoError(t, err)
+
+	// Smuggled legacy credentials under a trusted key are discarded (D-③1):
+	// bogus ak/sk ride along, the tenant key still decides.
+	smuggled := pkg.WithApp(context.Background(), "testkit", "totally-wrong")
+	smuggled = pkg.WithTenant(smuggled, "ten_itest000001")
+	require.NoError(t, s.rdb.FlushAll(context.Background()).Err())
+	_, err = s.client.Activate(smuggled, &licensev1.ActivateRequest{
+		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(3),
+	})
+	require.NoError(t, err, "trusted key is authoritative; the bogus legacy pair is ignored")
+
+	// Legacy direct: the seeded testkit app still authenticates unchanged.
+	_, err = s.client.Activate(s.appCtx, &licensev1.ActivateRequest{
+		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(4),
+	})
+	require.NoError(t, err)
+}

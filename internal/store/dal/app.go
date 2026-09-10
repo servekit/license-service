@@ -4,16 +4,57 @@ package dal
 
 import (
 	"context"
+	"errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/servekit/license-service/internal/store/generated"
 	"github.com/servekit/license-service/internal/store/models"
+	"github.com/servekit/license-service/pkg/xcodes"
 )
 
 // CreateApp inserts a new calling-app row.
 func CreateApp(ctx context.Context, tx *gorm.DB, a *models.LicenseApp) error {
 	return gorm.G[models.LicenseApp](tx).Create(ctx, a)
+}
+
+// EnsureTenantApp idempotently inserts the first-sight tenant gate row
+// (trusted x-tenant-key path). ON CONFLICT DO NOTHING (no target — the row
+// carries both unique keys, app_key and tenant_key) + caller re-read, so
+// racing replicas converge on one row and operator edits are never clobbered.
+func EnsureTenantApp(ctx context.Context, tx *gorm.DB, record *models.LicenseApp) error {
+	if err := gorm.G[models.LicenseApp](tx, clause.OnConflict{
+		DoNothing: true,
+	}).Create(ctx, record); err != nil {
+		return xcodes.ErrInternal.Wrap(err)
+	}
+	return nil
+}
+
+// GetAppForTenant resolves the tenant's gate row: prefer the tenant_key
+// mapping, fall back to app_key = tenantKey (pre-backfill window rows whose
+// column is still NULL). nil when neither matches.
+func GetAppForTenant(ctx context.Context, tx *gorm.DB, tenantKey string) (*models.LicenseApp, error) {
+	record, err := gorm.G[models.LicenseApp](tx).
+		Where(generated.LicenseApp.TenantKey.Eq(tenantKey)).
+		Take(ctx)
+	if err == nil {
+		return &record, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, xcodes.ErrInternal.Wrap(err)
+	}
+	record, err = gorm.G[models.LicenseApp](tx).
+		Where(generated.LicenseApp.AppKey.Eq(tenantKey)).
+		Take(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, xcodes.ErrInternal.Wrap(err)
+	}
+	return &record, nil
 }
 
 // GetAppByKey fetches an app by app_key; gorm.ErrRecordNotFound when absent.

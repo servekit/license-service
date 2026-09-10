@@ -31,6 +31,7 @@ import (
 	"github.com/servekit/license-service/internal/service/activation"
 	"github.com/servekit/license-service/internal/service/admin"
 	"github.com/servekit/license-service/internal/service/health"
+	"github.com/servekit/license-service/internal/tenantres"
 	"github.com/servekit/license-service/internal/version"
 
 	"github.com/servekit/license-service/pkg/config"
@@ -61,6 +62,9 @@ type Service struct {
 	admin *admin.Service
 	// health probes DB and signing readiness.
 	health *health.Service
+	// tenantRes resolves the data-plane caller through the phase ③
+	// dual-stack window (trusted x-tenant-key gate / legacy app validation).
+	tenantRes *tenantres.Resolver
 
 	// startedAt is set once in New; Ping returns it for uptime.
 	startedAt int64
@@ -124,6 +128,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		activation: activation.New(db, rdb, signer, actOpts),
 		admin:      admin.New(db, signer, trialDays),
 		health:     health.New(db, signer),
+		tenantRes:  tenantres.New(db),
 
 		startedAt: time.Now().UnixMilli(),
 	}
@@ -166,27 +171,30 @@ func (s *Service) Ping(_ context.Context) (*commonv1.Pong, error) {
 // --- facade methods (one per RPC, delegate to subpackage) ---
 
 // Activate delegates to the activation domain (A1–A12 converger). The
-// calling app must present valid credentials (requireApp — fail closed).
+// caller must pass the data-plane gate (requireCaller — dual-stack through
+// the phase ③ window, fail closed).
 func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
-	if _, err := s.requireApp(ctx); err != nil {
+	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err
 	}
 	return s.activation.Activate(ctx, req)
 }
 
 // Deactivate delegates to the activation domain (idempotent slot release).
-// The calling app must present valid credentials (requireApp — fail closed).
+// The caller must pass the data-plane gate (requireCaller — dual-stack
+// through the phase ③ window, fail closed).
 func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
-	if _, err := s.requireApp(ctx); err != nil {
+	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err
 	}
 	return s.activation.Deactivate(ctx, req)
 }
 
-// TrialStart delegates to the activation domain (keyless trial ledger).
-// The calling app must present valid credentials (requireApp — fail closed).
+// TrialStart delegates to the activation domain (keyless trial ledger). The
+// caller must pass the data-plane gate (requireCaller — dual-stack through
+// the phase ③ window, fail closed).
 func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
-	if _, err := s.requireApp(ctx); err != nil {
+	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err
 	}
 	return s.activation.TrialStart(ctx, req)

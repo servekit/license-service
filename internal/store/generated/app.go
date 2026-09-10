@@ -11,6 +11,7 @@ var LicenseApp = struct {
 	AppKey    field.String
 	AppSecret field.String
 	Name      field.String
+	TenantKey field.String
 	Disabled  field.Bool
 	CreatedAt field.Time
 	UpdatedAt field.Time
@@ -19,6 +20,7 @@ var LicenseApp = struct {
 	AppKey:    field.String{}.WithColumn("app_key"),
 	AppSecret: field.String{}.WithColumn("app_secret"),
 	Name:      field.String{}.WithColumn("name"),
+	TenantKey: field.String{}.WithColumn("tenant_key"),
 	Disabled:  field.Bool{}.WithColumn("disabled"),
 	CreatedAt: field.Time{}.WithColumn("created_at"),
 	UpdatedAt: field.Time{}.WithColumn("updated_at"),
