@@ -28,6 +28,7 @@ import (
 	licensev1 "github.com/servekit/api/gen/go/license/v1"
 	"github.com/servekit/license-service/internal/service/cert"
 	"github.com/servekit/license-service/internal/store/models"
+	"github.com/servekit/license-service/internal/appauth"
 	"github.com/servekit/license-service/pkg"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/option"
@@ -106,7 +107,7 @@ func startStack(t *testing.T) *stack {
 	require.NoError(t, db.Create(&models.LicenseApp{
 		AppKey: appKey, AppSecret: appSecret, Name: "integration",
 	}).Error)
-	appCtx := pkg.WithApp(context.Background(), appKey, appSecret)
+	appCtx := appauth.WithApp(context.Background(), appKey, appSecret)
 
 	return &stack{client: client, db: db, rdb: rdb, appCtx: appCtx}
 }
@@ -310,7 +311,7 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 
 	// Trusted first sight: a never-seen tenant key passes the gate and its
 	// gate row is lazily created exactly once.
-	trusted := pkg.WithTenant(context.Background(), "ten_itest000001")
+	trusted := appauth.WithTenant(context.Background(), "ten_itest000001")
 	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
@@ -335,8 +336,8 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 
 	// Smuggled legacy credentials under a trusted key are discarded (D-③1):
 	// bogus ak/sk ride along, the tenant key still decides.
-	smuggled := pkg.WithApp(context.Background(), "testkit", "totally-wrong")
-	smuggled = pkg.WithTenant(smuggled, "ten_itest000001")
+	smuggled := appauth.WithApp(context.Background(), "testkit", "totally-wrong")
+	smuggled = appauth.WithTenant(smuggled, "ten_itest000001")
 	require.NoError(t, s.rdb.FlushAll(context.Background()).Err())
 	_, err = s.client.Activate(smuggled, &licensev1.ActivateRequest{
 		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(3),
