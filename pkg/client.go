@@ -7,6 +7,8 @@ import (
 	commonv1 "github.com/servekit/api/gen/go/common/v1"
 	licensev1 "github.com/servekit/api/gen/go/license/v1"
 
+	"github.com/servekit/go-common/grpcx"
+	"github.com/servekit/go-common/tenantctx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -35,11 +37,19 @@ type Client struct {
 var _ licensev1.LicenseServiceServer = (*Client)(nil)
 var _ licensev1.LicenseAdminServiceServer = (*Client)(nil)
 
-// NewClient dials license-service at addr using insecure credentials by default.
-// Pass additional DialOptions (e.g., credentials) to override.
+// NewClient dials license-service at addr using insecure credentials by
+// default. ForwardActorUnary and ForwardTenantKeyUnary are always installed
+// so the request actor and the trusted tenant key (the ④ gate-injected
+// selection) cross the service boundary in gRPC mode — license historically
+// forwarded neither, killing identity and tenant at the hop. Pass additional
+// DialOptions (e.g., credentials) to override the transport.
 func NewClient(addr string, opts ...grpc.DialOption) (*Client, error) {
 	dialOpts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(
+			grpcx.ForwardActorUnary(),
+			tenantctx.ForwardTenantKeyUnary(),
+		),
 	}, opts...)
 
 	conn, err := grpc.NewClient(addr, dialOpts...)
