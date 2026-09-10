@@ -149,34 +149,34 @@ func (h *Handler) Health(ctx context.Context, req *licensev1.HealthRequest) (*li
 	return h.svc.Health(ctx, req)
 }
 
-// --- app-registry shims (calling applications; message-service pattern) ---
+// --- tenant-config shims (phase ④ T6 rename; message-service pattern) ---
 
-// CreateApp registers a calling app; the minted secret rides the response.
-func (h *Handler) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
-	return h.svc.CreateApp(ctx, req)
+// CreateTenantConfig registers a tenant's config row; the minted secret rides the response.
+func (h *Handler) CreateTenantConfig(ctx context.Context, req *licensev1.CreateTenantConfigRequest) (*licensev1.CreateTenantConfigResponse, error) {
+	return h.svc.CreateTenantConfig(ctx, req)
 }
 
-// GetApp returns one app by app_key.
-func (h *Handler) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
-	return h.svc.GetApp(ctx, req)
+// GetTenantConfig returns the tenant's config row.
+func (h *Handler) GetTenantConfig(ctx context.Context, req *licensev1.GetTenantConfigRequest) (*licensev1.GetTenantConfigResponse, error) {
+	return h.svc.GetTenantConfig(ctx, req)
 }
 
-// UpdateApp edits mutable fields (name, disabled); app_key is immutable.
-func (h *Handler) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
-	return h.svc.UpdateApp(ctx, req)
+// UpdateTenantConfig edits mutable fields (name, disabled); identity is immutable.
+func (h *Handler) UpdateTenantConfig(ctx context.Context, req *licensev1.UpdateTenantConfigRequest) (*licensev1.UpdateTenantConfigResponse, error) {
+	return h.svc.UpdateTenantConfig(ctx, req)
 }
 
-// RotateAppSecret mints a new app secret.
-func (h *Handler) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
-	return h.svc.RotateAppSecret(ctx, req)
+// RotateTenantConfigSecret mints a new app secret.
+func (h *Handler) RotateTenantConfigSecret(ctx context.Context, req *licensev1.RotateTenantConfigSecretRequest) (*licensev1.RotateTenantConfigSecretResponse, error) {
+	return h.svc.RotateTenantConfigSecret(ctx, req)
 }
 
-// ListApps lists all calling apps (no paging — low cardinality).
-func (h *Handler) ListApps(ctx context.Context, req *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
-	return h.svc.ListApps(ctx, req)
+// ListTenantConfigs lists the config rows in scope (no paging — low cardinality).
+func (h *Handler) ListTenantConfigs(ctx context.Context, req *licensev1.ListTenantConfigsRequest) (*licensev1.ListTenantConfigsResponse, error) {
+	return h.svc.ListTenantConfigs(ctx, req)
 }
 
-// DeleteApp removes the app row (hard delete).
-func (h *Handler) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
-	return h.svc.DeleteApp(ctx, req)
+// DeleteTenantConfig removes the config row (hard delete).
+func (h *Handler) DeleteTenantConfig(ctx context.Context, req *licensev1.DeleteTenantConfigRequest) (*emptypb.Empty, error) {
+	return h.svc.DeleteTenantConfig(ctx, req)
 }

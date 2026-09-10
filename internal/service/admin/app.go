@@ -1,8 +1,9 @@
-// App-registry admin RPCs: calling-application CRUD for the licensing
-// platform. Mirrors message-service's app management — app_key is immutable,
-// the secret is minted server-side and echoed on every read (internal-trust
-// posture; the ops console is the intended reader). Mutations log one
-// admin_audit line like the rest of this package.
+// Tenant-config admin RPCs for the licensing platform (phase ④ T6 rename
+// of the app registry): one config row per tenant; the row keeps its
+// internal calling-app identity — immutable, the secret minted server-side
+// and echoed on every read (internal-trust posture; the ops console is the
+// intended reader). Mutations log one admin_audit line like the rest of
+// this package.
 package admin
 
 import (
@@ -26,27 +27,21 @@ import (
 // appKeyGenAttempts bounds the minted-app_key collision retry loop.
 const appKeyGenAttempts = 3
 
-// CreateApp registers a calling application. app_key empty = minted
-// server-side ("lic_" + 8 base36 chars, collision-checked). The secret is
-// echoed on every read of LicenseAppInfo. Under a scope the row's
-// tenant_key is DERIVED from the injected key (the app_key-literal window
-// mapping is overridden).
-func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
+// CreateTenantConfig registers a tenant's config row. The internal app
+// identity is minted server-side ("lic_" + 8 base36 chars,
+// collision-checked). The secret is echoed on every read of
+// LicenseTenantConfigInfo. The row's tenant_key: a scoped caller is
+// clamped to the injected key; the cross-view keeps its explicit
+// tenant_key, else the minted app_key literal (the phase ③ window mapping
+// the migration backfill also writes; T10 总装 remaps).
+func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateTenantConfigRequest) (*licensev1.CreateTenantConfigResponse, error) {
 	scope, err := scopeFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	appKey := req.GetAppKey()
-	if appKey == "" {
-		var err error
-		appKey, err = s.mintUniqueAppKey(ctx)
-		if err != nil {
-			return nil, err
-		}
-	} else if _, err := dal.GetAppByKey(ctx, s.db, appKey); err == nil {
-		return nil, xcodes.ErrAppExists.New(fmt.Sprintf("app_key %q already exists", appKey))
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, xcodes.ErrInternal.Wrap(err)
+	appKey, err := s.mintUniqueAppKey(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	secret, err := mintAppSecret()
@@ -57,33 +52,29 @@ func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest
 		AppKey:    appKey,
 		AppSecret: secret,
 		Name:      req.GetName(),
-		// Phase ③ window mapping: the migration backfill writes
-		// tenant_key = app_key literal, so admin-created rows stamp the same
-		// value (the trusted lazy upsert and legacy conversion both resolve
-		// through it; T10 总装 remaps to ten_* keys). A scoped caller is
-		// clamped to the injected key instead.
-		TenantKey: models.TenantKeyPtr(clampTenantKey(scope, appKey)),
+		TenantKey: models.TenantKeyPtr(clampTenantKey(scope, req.GetTenantKey(), appKey)),
 	}
 	if err := dal.CreateApp(ctx, s.db, app); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
-	audit("create_app", "app:"+app.AppKey, "")
-	return &licensev1.CreateAppResponse{App: appToProto(app), AppSecret: secret}, nil
+	audit("create_tenant_config", "app:"+app.AppKey, "")
+	return &licensev1.CreateTenantConfigResponse{Config: appToProto(app), AppSecret: secret}, nil
 }
 
-// GetApp returns one app by app_key.
-func (s *Service) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
-	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
+// GetTenantConfig returns the tenant's config row (tenant_key selector;
+// pre-backfill rows resolve through the app_key-literal fallback).
+func (s *Service) GetTenantConfig(ctx context.Context, req *licensev1.GetTenantConfigRequest) (*licensev1.GetTenantConfigResponse, error) {
+	app, err := s.configForTenantScoped(ctx, req.GetTenantKey())
 	if err != nil {
 		return nil, err
 	}
-	return &licensev1.GetAppResponse{App: appToProto(app)}, nil
+	return &licensev1.GetTenantConfigResponse{Config: appToProto(app)}, nil
 }
 
-// UpdateApp edits mutable fields; app_key is immutable. Absent optional
-// fields keep their current values.
-func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
-	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
+// UpdateTenantConfig edits mutable fields; the row's identity is
+// immutable. Absent optional fields keep their current values.
+func (s *Service) UpdateTenantConfig(ctx context.Context, req *licensev1.UpdateTenantConfigRequest) (*licensev1.UpdateTenantConfigResponse, error) {
+	app, err := s.configForTenantScoped(ctx, req.GetTenantKey())
 	if err != nil {
 		return nil, err
 	}
@@ -96,14 +87,14 @@ func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest
 	if err := dal.UpdateApp(ctx, s.db, app); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
-	audit("update_app", fmt.Sprintf("app:%s disabled=%v", app.AppKey, app.Disabled), "")
-	return &licensev1.UpdateAppResponse{App: appToProto(app)}, nil
+	audit("update_tenant_config", fmt.Sprintf("app:%s disabled=%v", app.AppKey, app.Disabled), "")
+	return &licensev1.UpdateTenantConfigResponse{Config: appToProto(app)}, nil
 }
 
-// RotateAppSecret mints a new secret; the old one stops working immediately
-// (verification reads the DB on every call).
-func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
-	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
+// RotateTenantConfigSecret mints a new secret; the old one stops working
+// immediately (verification reads the DB on every call).
+func (s *Service) RotateTenantConfigSecret(ctx context.Context, req *licensev1.RotateTenantConfigSecretRequest) (*licensev1.RotateTenantConfigSecretResponse, error) {
+	app, err := s.configForTenantScoped(ctx, req.GetTenantKey())
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +106,14 @@ func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppS
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
 	app.AppSecret = secret
-	audit("rotate_app_secret", "app:"+app.AppKey, "")
-	return &licensev1.RotateAppSecretResponse{App: appToProto(app), AppSecret: secret}, nil
+	audit("rotate_tenant_config_secret", "app:"+app.AppKey, "")
+	return &licensev1.RotateTenantConfigSecretResponse{Config: appToProto(app), AppSecret: secret}, nil
 }
 
-// ListApps lists the apps in the caller's scope: for an injected key only
-// the app row mapped to that tenant; the cross-view the whole registry
-// (low cardinality, no paging).
-func (s *Service) ListApps(ctx context.Context, _ *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
+// ListTenantConfigs lists the config rows in the caller's scope: for an
+// injected key only the tenant's row; the cross-view the whole registry
+// (one row per tenant, low cardinality, no paging).
+func (s *Service) ListTenantConfigs(ctx context.Context, _ *licensev1.ListTenantConfigsRequest) (*licensev1.ListTenantConfigsResponse, error) {
 	scope, err := scopeFromCtx(ctx)
 	if err != nil {
 		return nil, err
@@ -131,71 +122,65 @@ func (s *Service) ListApps(ctx context.Context, _ *licensev1.ListAppsRequest) (*
 	if err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
-	out := make([]*licensev1.LicenseAppInfo, 0, len(apps))
+	out := make([]*licensev1.LicenseTenantConfigInfo, 0, len(apps))
 	for _, a := range apps {
 		if !visibleInTenant(scope, a) {
 			continue
 		}
 		out = append(out, appToProto(a))
 	}
-	return &licensev1.ListAppsResponse{Apps: out}, nil
+	return &licensev1.ListTenantConfigsResponse{Configs: out}, nil
 }
 
-// DeleteApp removes the app row (hard delete — licensing keeps no
-// soft-delete rows). Existing licenses and devices are untouched; the
-// app_key becomes reusable.
-func (s *Service) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
-	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
+// DeleteTenantConfig removes the tenant's config row (hard delete —
+// licensing keeps no soft-delete rows). Existing licenses and devices are
+// untouched; the row's identity becomes reusable.
+func (s *Service) DeleteTenantConfig(ctx context.Context, req *licensev1.DeleteTenantConfigRequest) (*emptypb.Empty, error) {
+	app, err := s.configForTenantScoped(ctx, req.GetTenantKey())
 	if err != nil {
 		return nil, err
 	}
 	if err := dal.DeleteApp(ctx, s.db, app.ID); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
-	audit("delete_app", "app:"+app.AppKey, "")
+	audit("delete_tenant_config", "app:"+app.AppKey, "")
 	return &emptypb.Empty{}, nil
 }
 
 // --- helpers ---
 
-// appByKeyScoped is the phase ④ T5 wrapper every app RPC resolves through:
-// fail closed on a caller with no trusted identity, then enforce the scope
-// AFTER the row load — a foreign tenant's app answers the same not-found
-// error a missing key would (anti-enumeration).
-func (s *Service) appByKeyScoped(ctx context.Context, appKey string) (*models.LicenseApp, error) {
+// configForTenantScoped is the resolver every tenant-config RPC funnels
+// through (the T5 appByKeyScoped shape, re-keyed to the tenant selector in
+// T6): fail closed on a caller with no trusted identity, resolve the row
+// by tenant_key (pre-backfill NULL-column rows fall back to the app_key
+// literal), then enforce the scope AFTER the row load — a foreign tenant's
+// row answers the same not-found a missing key would (anti-enumeration).
+func (s *Service) configForTenantScoped(ctx context.Context, tenantKey string) (*models.LicenseApp, error) {
 	scope, err := scopeFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := s.appByKey(ctx, appKey)
-	if err != nil {
-		return nil, err
-	}
-	if err := authorizeAppTenant(scope, app, xcodes.ErrAppNotFound.New()); err != nil {
-		return nil, err
-	}
-	return app, nil
-}
-
-// appByKey resolves an app by app_key, mapping not-found to the domain error.
-func (s *Service) appByKey(ctx context.Context, appKey string) (*models.LicenseApp, error) {
-	a, err := dal.GetAppByKey(ctx, s.db, appKey)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, xcodes.ErrAppNotFound.New()
-	}
+	a, err := dal.GetAppForTenant(ctx, s.db, tenantKey)
 	if err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
+	}
+	if a == nil {
+		return nil, xcodes.ErrAppNotFound.New()
+	}
+	if err := authorizeAppTenant(scope, a, xcodes.ErrAppNotFound.New()); err != nil {
+		return nil, err
 	}
 	return a, nil
 }
 
-func appToProto(a *models.LicenseApp) *licensev1.LicenseAppInfo {
-	return &licensev1.LicenseAppInfo{
+func appToProto(a *models.LicenseApp) *licensev1.LicenseTenantConfigInfo {
+	return &licensev1.LicenseTenantConfigInfo{
 		Id:        a.ID,
 		AppKey:    a.AppKey,
 		AppSecret: a.AppSecret,
 		Name:      a.Name,
 		Disabled:  a.Disabled,
+		TenantKey: models.TenantKeyOf(a.TenantKey),
 		CreatedAt: timestamppb.New(a.CreatedAt),
 		UpdatedAt: timestamppb.New(a.UpdatedAt),
 	}

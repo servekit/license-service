@@ -277,36 +277,39 @@ func (s *Service) ShowPubKey(ctx context.Context, req *licensev1.ShowPubKeyReque
 	return s.admin.ShowPubKey(ctx, req)
 }
 
-// --- app-registry facades (calling applications; message-service pattern) ---
+// --- tenant-config facades (phase ④ T6 rename; message-service pattern) ---
 
-// CreateApp registers a calling app; the minted secret rides the response.
-func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
-	return s.admin.CreateApp(ctx, req)
+// CreateTenantConfig registers a tenant's config row; the minted secret
+// rides the response.
+func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateTenantConfigRequest) (*licensev1.CreateTenantConfigResponse, error) {
+	return s.admin.CreateTenantConfig(ctx, req)
 }
 
-// GetApp returns one app by app_key.
-func (s *Service) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
-	return s.admin.GetApp(ctx, req)
+// GetTenantConfig returns the tenant's config row.
+func (s *Service) GetTenantConfig(ctx context.Context, req *licensev1.GetTenantConfigRequest) (*licensev1.GetTenantConfigResponse, error) {
+	return s.admin.GetTenantConfig(ctx, req)
 }
 
-// UpdateApp edits mutable fields (name, disabled); app_key is immutable.
-func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
-	return s.admin.UpdateApp(ctx, req)
+// UpdateTenantConfig edits mutable fields (name, disabled); identity is
+// immutable.
+func (s *Service) UpdateTenantConfig(ctx context.Context, req *licensev1.UpdateTenantConfigRequest) (*licensev1.UpdateTenantConfigResponse, error) {
+	return s.admin.UpdateTenantConfig(ctx, req)
 }
 
-// RotateAppSecret mints a new app secret.
-func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
-	return s.admin.RotateAppSecret(ctx, req)
+// RotateTenantConfigSecret mints a new app secret.
+func (s *Service) RotateTenantConfigSecret(ctx context.Context, req *licensev1.RotateTenantConfigSecretRequest) (*licensev1.RotateTenantConfigSecretResponse, error) {
+	return s.admin.RotateTenantConfigSecret(ctx, req)
 }
 
-// ListApps lists all calling apps (no paging — low cardinality).
-func (s *Service) ListApps(ctx context.Context, req *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
-	return s.admin.ListApps(ctx, req)
+// ListTenantConfigs lists the config rows in scope (no paging — low
+// cardinality).
+func (s *Service) ListTenantConfigs(ctx context.Context, req *licensev1.ListTenantConfigsRequest) (*licensev1.ListTenantConfigsResponse, error) {
+	return s.admin.ListTenantConfigs(ctx, req)
 }
 
-// DeleteApp removes the app row (hard delete).
-func (s *Service) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
-	return s.admin.DeleteApp(ctx, req)
+// DeleteTenantConfig removes the config row (hard delete).
+func (s *Service) DeleteTenantConfig(ctx context.Context, req *licensev1.DeleteTenantConfigRequest) (*emptypb.Empty, error) {
+	return s.admin.DeleteTenantConfig(ctx, req)
 }
 
 // Resource resolve helpers (resolveDB / resolveRedis)

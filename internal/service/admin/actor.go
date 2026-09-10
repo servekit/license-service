@@ -99,12 +99,15 @@ func authorizeAppTenant(scope string, app *models.LicenseApp, notFound error) er
 	return notFound
 }
 
-// clampTenantKey applies the create-side rule: a scoped caller's app is
-// stamped with the injected key (license creates take no tenant_key from
-// the wire — the app_key-literal fallback is overridden for scoped
-// callers). The cross-view keeps the literal fallback.
-func clampTenantKey(scope, appKey string) string {
+// clampTenantKey applies the create-side rule (phase ④ T6: creates now
+// carry tenant_key on the wire): a scoped caller's row is stamped with
+// the injected key (the body never wins); the cross-view keeps its
+// explicit target, else the minted app_key-literal fallback.
+func clampTenantKey(scope, requested, appKey string) string {
 	if scope == "" {
+		if requested != "" {
+			return requested
+		}
 		return appKey
 	}
 	return scope

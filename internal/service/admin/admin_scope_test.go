@@ -68,7 +68,7 @@ func TestAdminScope_NoIdentityFailsClosed(t *testing.T) {
 	h := newHarness(t)
 	ctx := anonCtx()
 
-	_, err := h.admin.ListApps(ctx, &licensev1.ListAppsRequest{})
+	_, err := h.admin.ListTenantConfigs(ctx, &licensev1.ListTenantConfigsRequest{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, xcodes.ErrUnauthorized.New())
 
@@ -78,7 +78,7 @@ func TestAdminScope_NoIdentityFailsClosed(t *testing.T) {
 	_, err = h.admin.ListKeys(ctx, &licensev1.ListKeysRequest{})
 	require.ErrorIs(t, err, xcodes.ErrUnauthorized.New())
 
-	_, err = h.admin.CreateApp(ctx, &licensev1.CreateAppRequest{AppKey: "x"})
+	_, err = h.admin.CreateTenantConfig(ctx, &licensev1.CreateTenantConfigRequest{Name: "x"})
 	require.ErrorIs(t, err, xcodes.ErrUnauthorized.New())
 }
 
@@ -90,46 +90,48 @@ func TestAdminScope_AppPlatformBranch(t *testing.T) {
 	seedScopedApps(t, h)
 	ctx := tenantCtx(scopeAlpha)
 
-	list, err := h.admin.ListApps(ctx, &licensev1.ListAppsRequest{})
+	list, err := h.admin.ListTenantConfigs(ctx, &licensev1.ListTenantConfigsRequest{})
 	require.NoError(t, err)
-	require.Len(t, list.GetApps(), 1)
-	assert.Equal(t, "alpha-app", list.GetApps()[0].GetAppKey())
+	require.Len(t, list.GetConfigs(), 1)
+	assert.Equal(t, "alpha-app", list.GetConfigs()[0].GetAppKey())
 
-	_, err = h.admin.GetApp(ctx, &licensev1.GetAppRequest{AppKey: "beta-app"})
+	_, err = h.admin.GetTenantConfig(ctx, &licensev1.GetTenantConfigRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
-	_, err = h.admin.UpdateApp(ctx, &licensev1.UpdateAppRequest{AppKey: "beta-app"})
+	_, err = h.admin.UpdateTenantConfig(ctx, &licensev1.UpdateTenantConfigRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
-	_, err = h.admin.RotateAppSecret(ctx, &licensev1.RotateAppSecretRequest{AppKey: "beta-app"})
+	_, err = h.admin.RotateTenantConfigSecret(ctx, &licensev1.RotateTenantConfigSecretRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
-	_, err = h.admin.DeleteApp(ctx, &licensev1.DeleteAppRequest{AppKey: "beta-app"})
+	_, err = h.admin.DeleteTenantConfig(ctx, &licensev1.DeleteTenantConfigRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
-	_, err = h.admin.GetApp(ctx, &licensev1.GetAppRequest{AppKey: "alpha-app"})
+	_, err = h.admin.GetTenantConfig(ctx, &licensev1.GetTenantConfigRequest{TenantKey: scopeAlpha})
 	require.NoError(t, err)
 
-	// scoped create derives tenant_key from the injection (the app_key
-	// literal window mapping is overridden); a fresh tenant keeps its
-	// one-row budget
-	_, err = h.admin.CreateApp(tenantCtx("ten_gamma0000000"), &licensev1.CreateAppRequest{AppKey: "gamma-minted"})
+	// scoped create derives tenant_key from the injection (the literal
+	// window mapping is overridden); a fresh tenant keeps its one-row
+	// budget. The app identity is minted server-side — read via the tenant.
+	_, err = h.admin.CreateTenantConfig(tenantCtx("ten_gamma0000000"), &licensev1.CreateTenantConfigRequest{Name: "gamma"})
 	require.NoError(t, err)
-	row, err := dal.GetAppByKey(context.Background(), h.db, "gamma-minted")
+	row, err := dal.GetAppForTenant(context.Background(), h.db, "ten_gamma0000000")
 	require.NoError(t, err)
+	require.NotNil(t, row)
 	assert.Equal(t, "ten_gamma0000000", models.TenantKeyOf(row.TenantKey))
 
-	// cross-view keeps the literal fallback and manages everything
-	cross, err := h.admin.CreateApp(platformCtx(), &licensev1.CreateAppRequest{AppKey: "ops-app"})
+	// cross-view keeps the literal fallback (the minted app key stamps
+	// itself) and manages everything
+	cross, err := h.admin.CreateTenantConfig(platformCtx(), &licensev1.CreateTenantConfigRequest{Name: "ops"})
 	require.NoError(t, err)
-	opsRow, err := dal.GetAppByKey(context.Background(), h.db, "ops-app")
+	opsKey := cross.GetConfig().GetAppKey()
+	opsRow, err := dal.GetAppByKey(context.Background(), h.db, opsKey)
 	require.NoError(t, err)
-	assert.Equal(t, "ops-app", models.TenantKeyOf(opsRow.TenantKey), "cross-view keeps the app_key literal stamp")
-	_ = cross
-	all, err := h.admin.ListApps(platformCtx(), &licensev1.ListAppsRequest{})
+	assert.Equal(t, opsKey, models.TenantKeyOf(opsRow.TenantKey), "cross-view keeps the minted literal stamp")
+	all, err := h.admin.ListTenantConfigs(platformCtx(), &licensev1.ListTenantConfigsRequest{})
 	require.NoError(t, err)
-	assert.Len(t, all.GetApps(), 4) // alpha, beta, gamma-minted, ops-app
-	_, err = h.admin.RotateAppSecret(platformCtx(), &licensev1.RotateAppSecretRequest{AppKey: "beta-app"})
+	assert.Len(t, all.GetConfigs(), 4) // alpha, beta, gamma, ops
+	_, err = h.admin.RotateTenantConfigSecret(platformCtx(), &licensev1.RotateTenantConfigSecretRequest{TenantKey: scopeBeta})
 	require.NoError(t, err)
 }
 
