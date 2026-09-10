@@ -20,6 +20,7 @@ import (
 	userv1 "github.com/servekit/api/gen/go/user/v1"
 	"github.com/servekit/go-common/grpcx"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
@@ -27,9 +28,9 @@ import (
 
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/redisx"
+	"github.com/servekit/go-common/tenantctx"
 
 	licensev1 "github.com/servekit/api/gen/go/license/v1"
-	"github.com/servekit/license-service/internal/appauth"
 	"github.com/servekit/license-service/internal/service/cert"
 	"github.com/servekit/license-service/internal/store/models"
 	"github.com/servekit/license-service/pkg"
@@ -60,9 +61,20 @@ type stack struct {
 	client *pkg.Client
 	db     *gorm.DB
 	rdb    *redis.Client
-	// appCtx carries calling-app credentials for the client surface
-	// (Activate/Deactivate/TrialStart verify them, fail-closed).
-	appCtx context.Context
+	// appCtx carries the trusted tenant key for the client surface
+	// (Activate/Deactivate/TrialStart verify it, fail-closed); legacyCtx
+	// carries the deleted stack's pair (anti-regression only).
+	appCtx    context.Context
+	legacyCtx context.Context
+}
+
+// legacyCtx plants the deleted stack's wire shape (a complete x-app-key/
+// x-app-secret pair) on incoming metadata.
+func legacyCtx(ctx context.Context, appKey, appSecret string) context.Context {
+	return metadata.NewIncomingContext(ctx, metadata.Pairs(
+		"x-app-key", appKey,
+		"x-app-secret", appSecret,
+	))
 }
 
 func freePort(t *testing.T) string {
@@ -114,15 +126,16 @@ func startStack(t *testing.T) *stack {
 		require.True(t, time.Now().Before(deadline), "gRPC server never came up")
 	}
 
-	// The client surface requires calling-app credentials (x-app-key /
-	// x-app-secret) — seed one like an embedder would.
-	const appKey, appSecret = "testkit", "lic_itest_secret"
+	// The client surface requires the trusted x-tenant-key (④ window close).
+	// A legacy-shaped row is still seeded — for the anti-regression
+	// assertion that its previously-valid pair no longer authenticates.
+	const legacyKey, legacySecret = "testkit", "lic_itest_secret"
 	require.NoError(t, db.Create(&models.LicenseApp{
-		AppKey: appKey, AppSecret: appSecret, Name: "integration",
+		AppKey: legacyKey, AppSecret: legacySecret, Name: "integration-legacy",
 	}).Error)
-	appCtx := appauth.WithApp(context.Background(), appKey, appSecret)
+	appCtx := tenantctx.WithTenant(context.Background(), "ten_lictest00001")
 
-	return &stack{client: client, db: db, rdb: rdb, appCtx: appCtx}
+	return &stack{client: client, db: db, rdb: rdb, appCtx: appCtx, legacyCtx: legacyCtx(context.Background(), legacyKey, legacySecret)}
 }
 
 // seedKeyWithSlots creates a key via the admin surface and activates slots
@@ -329,7 +342,7 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 
 	// Trusted first sight: a never-seen tenant key passes the gate and its
 	// gate row is lazily created exactly once.
-	trusted := appauth.WithTenant(context.Background(), "ten_itest000001")
+	trusted := tenantctx.WithTenant(context.Background(), "ten_itest0000001")
 	created, err := s.client.CreateKey(platformCtx(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
@@ -342,8 +355,8 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 	require.NoError(t, err, "trusted tenant key passes the gate on first sight")
 
 	var gate models.LicenseApp
-	require.NoError(t, s.db.Where("app_key = ?", "ten_itest000001").First(&gate).Error)
-	require.Equal(t, "ten_itest000001", models.TenantKeyOf(gate.TenantKey), "lazy gate row carries the mapping")
+	require.NoError(t, s.db.Where("app_key = ?", "ten_itest0000001").First(&gate).Error)
+	require.Equal(t, "ten_itest0000001", models.TenantKeyOf(gate.TenantKey), "lazy gate row carries the mapping")
 
 	// TrialStart through the same trusted gate (keyless).
 	require.NoError(t, s.rdb.FlushAll(context.Background()).Err())
@@ -354,17 +367,20 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 
 	// Smuggled legacy credentials under a trusted key are discarded (D-③1):
 	// bogus ak/sk ride along, the tenant key still decides.
-	smuggled := appauth.WithApp(context.Background(), "testkit", "totally-wrong")
-	smuggled = appauth.WithTenant(smuggled, "ten_itest000001")
+	smuggled := legacyCtx(context.Background(), "testkit", "totally-wrong")
+	smuggled = tenantctx.WithTenant(smuggled, "ten_itest0000001")
 	require.NoError(t, s.rdb.FlushAll(context.Background()).Err())
 	_, err = s.client.Activate(smuggled, &licensev1.ActivateRequest{
 		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(3),
 	})
 	require.NoError(t, err, "trusted key is authoritative; the bogus legacy pair is ignored")
 
-	// Legacy direct: the seeded testkit app still authenticates unchanged.
-	_, err = s.client.Activate(s.appCtx, &licensev1.ActivateRequest{
+	// Legacy direct (④ window close): the seeded testkit pair — previously
+	// a valid credential — no longer authenticates.
+	_, err = s.client.Activate(s.legacyCtx, &licensev1.ActivateRequest{
 		Key: created.GetPlaintextKey(), FingerprintId: fingerprint, DeviceToken: tok(4),
 	})
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.Equal(t, codes.Unauthenticated, status.Convert(err).Code(),
+		"a previously-valid legacy pair must now be unauthenticated")
 }

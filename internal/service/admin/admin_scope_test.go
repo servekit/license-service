@@ -131,6 +131,12 @@ func TestAdminScope_AppPlatformBranch(t *testing.T) {
 	all, err := h.admin.ListTenantConfigs(platformCtx(), &licensev1.ListTenantConfigsRequest{})
 	require.NoError(t, err)
 	assert.Len(t, all.GetConfigs(), 4) // alpha, beta, gamma, ops
+
+	// T7 friendly duplicate check: a tenant_key that already owns a config
+	// row answers BadRequest (not the INTERNAL the the DB unique violation
+	// used to surface as).
+	_, err = h.admin.CreateTenantConfig(tenantCtx("ten_gamma0000000"), &licensev1.CreateTenantConfigRequest{Name: "gamma-again"})
+	require.ErrorIs(t, err, xcodes.ErrBadRequest.New(), "duplicate tenant_key must answer the friendly BadRequest")
 	_, err = h.admin.RotateTenantConfigSecret(platformCtx(), &licensev1.RotateTenantConfigSecretRequest{TenantKey: scopeBeta})
 	require.NoError(t, err)
 }

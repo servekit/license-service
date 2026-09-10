@@ -48,11 +48,22 @@ func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateT
 	if err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
+	tenantKey := clampTenantKey(scope, req.GetTenantKey(), appKey)
+	// Friendly duplicate check (T7 cleanup): a tenant_key that already owns
+	// a config row would otherwise surface as the DB unique violation
+	// wrapped in INTERNAL — answer the caller a BadRequest instead (the
+	// storage surface's ErrAppExists semantics, license's error table has
+	// no 409 entry so BadRequest carries it).
+	if existing, err := dal.GetAppForTenant(ctx, s.db, tenantKey); err != nil {
+		return nil, xcodes.ErrInternal.Wrap(err)
+	} else if existing != nil {
+		return nil, xcodes.ErrBadRequest.New(fmt.Sprintf("tenant_key %q already has a config row", tenantKey))
+	}
 	app := &models.LicenseApp{
 		AppKey:    appKey,
 		AppSecret: secret,
 		Name:      req.GetName(),
-		TenantKey: models.TenantKeyPtr(clampTenantKey(scope, req.GetTenantKey(), appKey)),
+		TenantKey: models.TenantKeyPtr(tenantKey),
 	}
 	if err := dal.CreateApp(ctx, s.db, app); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
