@@ -67,9 +67,10 @@ func (h *harness) flush(t *testing.T) {
 // TestCreateKeyLoopWithActivate: the full operator flow — mint a key with
 // grants, activate with the returned plaintext, see the entitlements in the
 // signed cert.
+
 func TestCreateKeyLoopWithActivate(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{
 		Label: "order-42",
@@ -123,7 +124,7 @@ func TestCreateKeyLoopWithActivate(t *testing.T) {
 // duration/exclusive rule is enforced server-side too (CEL guards the wire).
 func TestCreateKeyValidation(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 
 	_, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{{
@@ -148,7 +149,7 @@ func TestCreateKeyValidation(t *testing.T) {
 // heartbeats), unrevoke reattaches slots as they were.
 func TestRevokeUnrevokeLifecycle(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
 	licenseID := created.GetKey().GetLicenseId()
@@ -178,7 +179,7 @@ func TestRevokeUnrevokeLifecycle(t *testing.T) {
 // TestUpdateKey: optional label/slots; empty update rejected.
 func TestUpdateKey(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{Label: "before"})
 	require.NoError(t, err)
 	id := created.GetKey().GetLicenseId()
@@ -196,7 +197,7 @@ func TestUpdateKey(t *testing.T) {
 // devices together; confirm is mandatory.
 func TestDeleteKeyCascade(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
@@ -228,7 +229,7 @@ func TestDeleteKeyCascade(t *testing.T) {
 // expiry); absolute expiry overrides; perpetual+expiry rejected.
 func TestGrantModuleExtensionRules(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
 	id := created.GetKey().GetLicenseId()
@@ -271,7 +272,7 @@ func TestGrantModuleExtensionRules(t *testing.T) {
 // TestRevokeModuleDropsFromNextCert.
 func TestRevokeModuleDropsFromNextCert(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
@@ -297,7 +298,7 @@ func TestRevokeModuleDropsFromNextCert(t *testing.T) {
 // TestListAndKickDevices.
 func TestListAndKickDevices(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	created, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
 	id := created.GetKey().GetLicenseId()
@@ -325,7 +326,7 @@ func TestListAndKickDevices(t *testing.T) {
 // row (the only manual channel).
 func TestTrialsShowAndReset(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 
 	_, err := h.act.TrialStart(ctx, &licensev1.TrialStartRequest{Module: "downloads", FingerprintId: fp1, DeviceToken: tok(1)})
 	require.NoError(t, err)
@@ -362,7 +363,7 @@ func TestTrialsShowAndReset(t *testing.T) {
 // TestShowPubKey: lists every configured key (sorted) plus the active kid.
 func TestShowPubKey(t *testing.T) {
 	h := newHarness(t)
-	resp, err := h.admin.ShowPubKey(context.Background(), &licensev1.ShowPubKeyRequest{})
+	resp, err := h.admin.ShowPubKey(platformCtx(), &licensev1.ShowPubKeyRequest{})
 	require.NoError(t, err)
 	require.Len(t, resp.GetKeys(), 1)
 	require.Equal(t, "k1", resp.GetActiveKeyId())
@@ -381,7 +382,7 @@ func TestShowPubKeyMultipleKeys(t *testing.T) {
 	require.NoError(t, err)
 	svc := admin.New(db, signer, 14)
 
-	resp, err := svc.ShowPubKey(context.Background(), &licensev1.ShowPubKeyRequest{})
+	resp, err := svc.ShowPubKey(platformCtx(), &licensev1.ShowPubKeyRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "b-key", resp.GetActiveKeyId())
 	require.Len(t, resp.GetKeys(), 2)
@@ -394,7 +395,7 @@ func TestShowPubKeyMultipleKeys(t *testing.T) {
 // TestListKeys.
 func TestListKeys(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	for i := 0; i < 3; i++ {
 		_, err := h.admin.CreateKey(ctx, &licensev1.CreateKeyRequest{Label: "k"})
 		require.NoError(t, err)
@@ -407,7 +408,7 @@ func TestListKeys(t *testing.T) {
 // Unknown key ids surface KEY_NOT_FOUND across the admin surface.
 func TestUnknownKeyID(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
+	ctx := platformCtx() // phase ④ T5: the admin surface requires a trusted identity
 	for _, call := range []func() error{
 		func() error {
 			_, err := h.admin.ShowKey(ctx, &licensev1.ShowKeyRequest{KeyId: "lk_ffffffffffffffffffffffffffffffff"})

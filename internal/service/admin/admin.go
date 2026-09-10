@@ -188,6 +188,10 @@ func grantRow(keyHash string, module licensev1.Module, kind licensev1.Entitlemen
 // CreateKey mints a fresh key; the plaintext appears exactly once, in this
 // response. Collision on the (entropy-backed) hash retries a few times.
 func (s *Service) CreateKey(ctx context.Context, req *licensev1.CreateKeyRequest) (*licensev1.CreateKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	slots := req.GetSlots()
 	if slots == 0 {
 		slots = 3 // documented default
@@ -258,6 +262,10 @@ func (s *Service) CreateKey(ctx context.Context, req *licensev1.CreateKeyRequest
 
 // ShowKey returns the full key view including the slot roster.
 func (s *Service) ShowKey(ctx context.Context, req *licensev1.ShowKeyRequest) (*licensev1.ShowKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	var info *licensev1.KeyInfo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		k, err := resolveKey(ctx, tx, req.GetKeyId())
@@ -275,6 +283,10 @@ func (s *Service) ShowKey(ctx context.Context, req *licensev1.ShowKeyRequest) (*
 
 // ListKeys returns a lightweight roster; status 0 = all.
 func (s *Service) ListKeys(ctx context.Context, req *licensev1.ListKeysRequest) (*licensev1.ListKeysResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	limit := req.GetLimit()
 	if limit == 0 {
 		limit = 100
@@ -296,6 +308,10 @@ func (s *Service) ListKeys(ctx context.Context, req *licensev1.ListKeysRequest) 
 
 // UpdateKey applies optional label/slots updates.
 func (s *Service) UpdateKey(ctx context.Context, req *licensev1.UpdateKeyRequest) (*licensev1.UpdateKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	if req.Label == nil && req.Slots == nil {
 		return nil, xcodes.ErrBadRequest.New("nothing to update")
 	}
@@ -335,6 +351,10 @@ func (s *Service) UpdateKey(ctx context.Context, req *licensev1.UpdateKeyRequest
 
 // RevokeKey freezes the key (rows kept; slots reattach on unrevoke).
 func (s *Service) RevokeKey(ctx context.Context, req *licensev1.RevokeKeyRequest) (*licensev1.RevokeKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	var info *licensev1.KeyInfo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -361,6 +381,10 @@ func (s *Service) RevokeKey(ctx context.Context, req *licensev1.RevokeKeyRequest
 
 // UnrevokeKey reactivates the key; slots reattach as they were.
 func (s *Service) UnrevokeKey(ctx context.Context, req *licensev1.UnrevokeKeyRequest) (*licensev1.UnrevokeKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	var info *licensev1.KeyInfo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		k, err := resolveKey(ctx, tx, req.GetKeyId())
@@ -387,6 +411,10 @@ func (s *Service) UnrevokeKey(ctx context.Context, req *licensev1.UnrevokeKeyReq
 // DeleteKey physically removes the key and, in the same transaction, its
 // entitlements and devices (app-level cascade — FKs are disabled by dbx).
 func (s *Service) DeleteKey(ctx context.Context, req *licensev1.DeleteKeyRequest) (*licensev1.DeleteKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	if req.Confirm == nil || !*req.Confirm {
 		return nil, xcodes.ErrBadRequest.New("physical delete requires confirm=true")
 	}
@@ -420,6 +448,10 @@ func (s *Service) DeleteKey(ctx context.Context, req *licensev1.DeleteKeyRequest
 // GrantModule upserts one module entitlement; expiry follows the
 // duration/absolute rules against the current row.
 func (s *Service) GrantModule(ctx context.Context, req *licensev1.GrantModuleRequest) (*licensev1.GrantModuleResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	var out *licensev1.EntitlementInfo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -459,6 +491,10 @@ func (s *Service) GrantModule(ctx context.Context, req *licensev1.GrantModuleReq
 
 // RevokeModule removes one module entitlement; the next issuance drops it.
 func (s *Service) RevokeModule(ctx context.Context, req *licensev1.RevokeModuleRequest) (*licensev1.RevokeModuleResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		k, err := resolveKey(ctx, tx, req.GetKeyId())
 		if err != nil {
@@ -480,6 +516,10 @@ func (s *Service) RevokeModule(ctx context.Context, req *licensev1.RevokeModuleR
 
 // ListKeyDevices returns the slot roster.
 func (s *Service) ListKeyDevices(ctx context.Context, req *licensev1.ListKeyDevicesRequest) (*licensev1.ListKeyDevicesResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	resp := &licensev1.ListKeyDevicesResponse{}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		k, err := resolveKey(ctx, tx, req.GetKeyId())
@@ -503,6 +543,10 @@ func (s *Service) ListKeyDevices(ctx context.Context, req *licensev1.ListKeyDevi
 
 // KickDevice force-releases one slot (support-side eviction).
 func (s *Service) KickDevice(ctx context.Context, req *licensev1.KickDeviceRequest) (*licensev1.KickDeviceResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	kicked := false
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		k, err := resolveKey(ctx, tx, req.GetKeyId())
@@ -535,6 +579,10 @@ func (s *Service) KickDevice(ctx context.Context, req *licensev1.KickDeviceReque
 // ShowTrial returns the fingerprint's ledger (module 0 = all modules),
 // expiry derived at the configured trial length.
 func (s *Service) ShowTrial(ctx context.Context, req *licensev1.ShowTrialRequest) (*licensev1.ShowTrialResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	trials, err := dal.ListTrialsByFingerprint(ctx, s.db, req.GetFingerprintId())
 	if err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
@@ -558,6 +606,10 @@ func (s *Service) ShowTrial(ctx context.Context, req *licensev1.ShowTrialRequest
 // ResetTrial deletes the ledger row — the only manual reset channel; reason
 // is mandatory (proto) and lands in the audit log.
 func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialRequest) (*licensev1.ResetTrialResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	reset := false
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		got, err := dal.GetTrial(ctx, tx, req.GetFingerprintId(), int32(req.GetModule()))
@@ -586,7 +638,11 @@ func (s *Service) ResetTrial(ctx context.Context, req *licensev1.ResetTrialReque
 
 // ShowPubKey exposes the signing public keys for pinning into client key
 // tables: every configured key, sorted by kid, plus the active kid.
-func (s *Service) ShowPubKey(_ context.Context, _ *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
+func (s *Service) ShowPubKey(ctx context.Context, _ *licensev1.ShowPubKeyRequest) (*licensev1.ShowPubKeyResponse, error) {
+	if err := requirePlatformScope(ctx); err != nil {
+		return nil, err
+	}
+
 	resp := &licensev1.ShowPubKeyResponse{ActiveKeyId: s.signer.ActiveKeyID()}
 	pubs := s.signer.PublicKeys()
 	kids := make([]string, 0, len(pubs))

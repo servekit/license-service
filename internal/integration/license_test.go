@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	commonv1 "github.com/servekit/api/gen/go/common/v1"
+	userv1 "github.com/servekit/api/gen/go/user/v1"
+	"github.com/servekit/go-common/grpcx"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
@@ -26,9 +29,9 @@ import (
 	"github.com/servekit/go-common/redisx"
 
 	licensev1 "github.com/servekit/api/gen/go/license/v1"
+	"github.com/servekit/license-service/internal/appauth"
 	"github.com/servekit/license-service/internal/service/cert"
 	"github.com/servekit/license-service/internal/store/models"
-	"github.com/servekit/license-service/internal/appauth"
 	"github.com/servekit/license-service/pkg"
 	"github.com/servekit/license-service/pkg/config"
 	"github.com/servekit/license-service/pkg/option"
@@ -40,6 +43,16 @@ const (
 	fingerprint = "v1.5555555555555555555555555555555555555555555555555555555555555555"
 	keyShape    = "AV1DABCDEFGHIJKLMNOPQRST"
 )
+
+// platformCtx plants the phase ④ T5 admin-surface identity (a PLATFORM
+// operator); the client's ForwardActorUnary dial option carries it across
+// the real gRPC hop.
+func platformCtx() context.Context {
+	return grpcx.WithActor(context.Background(), &commonv1.RequestActor{
+		UserId:   7,
+		UserType: int32(userv1.UserType_USER_TYPE_PLATFORM),
+	})
+}
 
 func tok(i int) string { return fmt.Sprintf("%08x-0000-4000-8000-%012x", i, i) }
 
@@ -145,7 +158,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	})
 	require.Equal(t, codes.Unauthenticated, status.Convert(err).Code())
 
-	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
+	created, err := s.client.CreateKey(platformCtx(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
 		},
@@ -189,7 +202,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	require.Len(t, slots.GetDevices(), 3)
 
 	// 403 KEY_REVOKED → PermissionDenied.
-	_, err = s.client.RevokeKey(context.Background(), &licensev1.RevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
+	_, err = s.client.RevokeKey(platformCtx(), &licensev1.RevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
 	require.NoError(t, err)
 	require.NoError(t, s.rdb.FlushAll(ctx).Err())
 	_, err = s.client.Activate(ctx, &licensev1.ActivateRequest{
@@ -198,7 +211,7 @@ func TestErrorContract_StatusCodesAndDetails(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, status.Convert(err).Code())
 
 	// 400 ALREADY_ENTITLED → InvalidArgument (trial with a valid key grant).
-	_, err = s.client.UnrevokeKey(context.Background(), &licensev1.UnrevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
+	_, err = s.client.UnrevokeKey(platformCtx(), &licensev1.UnrevokeKeyRequest{KeyId: created.GetKey().GetLicenseId()})
 	require.NoError(t, err)
 	require.NoError(t, s.rdb.FlushAll(ctx).Err())
 	_, err = s.client.TrialStart(ctx, &licensev1.TrialStartRequest{
@@ -213,7 +226,7 @@ func TestPayloadContract(t *testing.T) {
 	s := startStack(t)
 	ctx := s.appCtx
 
-	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
+	created, err := s.client.CreateKey(platformCtx(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_DOWNLOADS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
 		},
@@ -252,7 +265,12 @@ func TestAdminFromInternalNetwork(t *testing.T) {
 	s := startStack(t)
 	ctx := s.appCtx
 
+	// phase ④ T5: the admin surface now demands a trusted identity even on
+	// the internal network — a bare call fails closed, a platform actor
+	// passes.
 	_, err := s.client.CreateKey(ctx, &licensev1.CreateKeyRequest{})
+	require.Error(t, err, "no identity on the admin surface fails closed")
+	_, err = s.client.CreateKey(platformCtx(), &licensev1.CreateKeyRequest{})
 	require.NoError(t, err)
 
 	// The client surface keeps its own error semantics.
@@ -312,7 +330,7 @@ func TestDataPlaneDualStackGate(t *testing.T) {
 	// Trusted first sight: a never-seen tenant key passes the gate and its
 	// gate row is lazily created exactly once.
 	trusted := appauth.WithTenant(context.Background(), "ten_itest000001")
-	created, err := s.client.CreateKey(context.Background(), &licensev1.CreateKeyRequest{
+	created, err := s.client.CreateKey(platformCtx(), &licensev1.CreateKeyRequest{
 		Grants: []*licensev1.EntitlementInput{
 			{Module: licensev1.Module_MODULE_TOOLS, Kind: licensev1.EntitlementKind_ENTITLEMENT_KIND_PERPETUAL},
 		},

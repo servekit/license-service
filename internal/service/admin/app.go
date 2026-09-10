@@ -28,8 +28,14 @@ const appKeyGenAttempts = 3
 
 // CreateApp registers a calling application. app_key empty = minted
 // server-side ("lic_" + 8 base36 chars, collision-checked). The secret is
-// echoed on every read of LicenseAppInfo.
+// echoed on every read of LicenseAppInfo. Under a scope the row's
+// tenant_key is DERIVED from the injected key (the app_key-literal window
+// mapping is overridden).
 func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest) (*licensev1.CreateAppResponse, error) {
+	scope, err := scopeFromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	appKey := req.GetAppKey()
 	if appKey == "" {
 		var err error
@@ -54,8 +60,9 @@ func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest
 		// Phase ③ window mapping: the migration backfill writes
 		// tenant_key = app_key literal, so admin-created rows stamp the same
 		// value (the trusted lazy upsert and legacy conversion both resolve
-		// through it; T10 总装 remaps to ten_* keys).
-		TenantKey: models.TenantKeyPtr(appKey),
+		// through it; T10 总装 remaps to ten_* keys). A scoped caller is
+		// clamped to the injected key instead.
+		TenantKey: models.TenantKeyPtr(clampTenantKey(scope, appKey)),
 	}
 	if err := dal.CreateApp(ctx, s.db, app); err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
@@ -66,7 +73,7 @@ func (s *Service) CreateApp(ctx context.Context, req *licensev1.CreateAppRequest
 
 // GetApp returns one app by app_key.
 func (s *Service) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*licensev1.GetAppResponse, error) {
-	app, err := s.appByKey(ctx, req.GetAppKey())
+	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +83,7 @@ func (s *Service) GetApp(ctx context.Context, req *licensev1.GetAppRequest) (*li
 // UpdateApp edits mutable fields; app_key is immutable. Absent optional
 // fields keep their current values.
 func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest) (*licensev1.UpdateAppResponse, error) {
-	app, err := s.appByKey(ctx, req.GetAppKey())
+	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +103,7 @@ func (s *Service) UpdateApp(ctx context.Context, req *licensev1.UpdateAppRequest
 // RotateAppSecret mints a new secret; the old one stops working immediately
 // (verification reads the DB on every call).
 func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppSecretRequest) (*licensev1.RotateAppSecretResponse, error) {
-	app, err := s.appByKey(ctx, req.GetAppKey())
+	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
 	if err != nil {
 		return nil, err
 	}
@@ -112,14 +119,23 @@ func (s *Service) RotateAppSecret(ctx context.Context, req *licensev1.RotateAppS
 	return &licensev1.RotateAppSecretResponse{App: appToProto(app), AppSecret: secret}, nil
 }
 
-// ListApps lists all apps (low cardinality, no paging).
+// ListApps lists the apps in the caller's scope: for an injected key only
+// the app row mapped to that tenant; the cross-view the whole registry
+// (low cardinality, no paging).
 func (s *Service) ListApps(ctx context.Context, _ *licensev1.ListAppsRequest) (*licensev1.ListAppsResponse, error) {
+	scope, err := scopeFromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
 	apps, err := dal.ListApps(ctx, s.db)
 	if err != nil {
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
 	out := make([]*licensev1.LicenseAppInfo, 0, len(apps))
 	for _, a := range apps {
+		if !visibleInTenant(scope, a) {
+			continue
+		}
 		out = append(out, appToProto(a))
 	}
 	return &licensev1.ListAppsResponse{Apps: out}, nil
@@ -129,7 +145,7 @@ func (s *Service) ListApps(ctx context.Context, _ *licensev1.ListAppsRequest) (*
 // soft-delete rows). Existing licenses and devices are untouched; the
 // app_key becomes reusable.
 func (s *Service) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest) (*emptypb.Empty, error) {
-	app, err := s.appByKey(ctx, req.GetAppKey())
+	app, err := s.appByKeyScoped(ctx, req.GetAppKey())
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +157,25 @@ func (s *Service) DeleteApp(ctx context.Context, req *licensev1.DeleteAppRequest
 }
 
 // --- helpers ---
+
+// appByKeyScoped is the phase ④ T5 wrapper every app RPC resolves through:
+// fail closed on a caller with no trusted identity, then enforce the scope
+// AFTER the row load — a foreign tenant's app answers the same not-found
+// error a missing key would (anti-enumeration).
+func (s *Service) appByKeyScoped(ctx context.Context, appKey string) (*models.LicenseApp, error) {
+	scope, err := scopeFromCtx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.appByKey(ctx, appKey)
+	if err != nil {
+		return nil, err
+	}
+	if err := authorizeAppTenant(scope, app, xcodes.ErrAppNotFound.New()); err != nil {
+		return nil, err
+	}
+	return app, nil
+}
 
 // appByKey resolves an app by app_key, mapping not-found to the domain error.
 func (s *Service) appByKey(ctx context.Context, appKey string) (*models.LicenseApp, error) {
