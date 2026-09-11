@@ -62,8 +62,8 @@ type Service struct {
 	admin *admin.Service
 	// health probes DB and signing readiness.
 	health *health.Service
-	// tenantRes resolves the data-plane caller through the phase ③
-	// dual-stack window (trusted x-tenant-key gate / legacy app validation).
+	// tenantRes resolves the data-plane caller through the trusted
+	// x-tenant-key gate (format-validated; fail closed).
 	tenantRes *tenantres.Resolver
 
 	// startedAt is set once in New; Ping returns it for uptime.
@@ -171,8 +171,8 @@ func (s *Service) Ping(_ context.Context) (*commonv1.Pong, error) {
 // --- facade methods (one per RPC, delegate to subpackage) ---
 
 // Activate delegates to the activation domain (A1–A12 converger). The
-// caller must pass the data-plane gate (requireCaller — dual-stack through
-// the phase ③ window, fail closed).
+// caller must pass the data-plane gate (requireCaller — trusted
+// x-tenant-key only, fail closed).
 func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) (*licensev1.ActivateResponse, error) {
 	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err
@@ -181,8 +181,8 @@ func (s *Service) Activate(ctx context.Context, req *licensev1.ActivateRequest) 
 }
 
 // Deactivate delegates to the activation domain (idempotent slot release).
-// The caller must pass the data-plane gate (requireCaller — dual-stack
-// through the phase ③ window, fail closed).
+// The caller must pass the data-plane gate (requireCaller — trusted
+// x-tenant-key only, fail closed).
 func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateRequest) (*licensev1.DeactivateResponse, error) {
 	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err
@@ -191,8 +191,8 @@ func (s *Service) Deactivate(ctx context.Context, req *licensev1.DeactivateReque
 }
 
 // TrialStart delegates to the activation domain (keyless trial ledger). The
-// caller must pass the data-plane gate (requireCaller — dual-stack through
-// the phase ③ window, fail closed).
+// caller must pass the data-plane gate (requireCaller — trusted
+// x-tenant-key only, fail closed).
 func (s *Service) TrialStart(ctx context.Context, req *licensev1.TrialStartRequest) (*licensev1.TrialStartResponse, error) {
 	if _, err := s.requireCaller(ctx); err != nil {
 		return nil, err

@@ -4,14 +4,13 @@ package models
 
 import "time"
 
-// LicenseApp is one calling application of the licensing platform (a business
-// system identity, NOT an end-user license). Data-plane callers present
-// (app_key, app_secret) as x-app-key / x-app-secret metadata — through the
-// phase ③ dual-stack window the trusted x-tenant-key is authoritative and
-// this row is purely the GATE: license keys/devices/trials/entitlements are
-// global (no tenant dimension), so the gate row is the only per-tenant
-// artifact. Mirrors the messaging/storage platform app pattern (secret stored
-// PLAINTEXT — internal-trust posture).
+// LicenseApp is the tenant's GATE row on the licensing platform (a business
+// system identity, NOT an end-user license). Since the ④ window close the
+// data-plane caller presents the trusted x-tenant-key and this row is
+// purely the GATE: license keys/devices/trials/entitlements are global
+// (no tenant dimension), so the gate row is the only per-tenant artifact.
+// Mirrors the messaging/storage platform app pattern (the minted secret
+// only satisfies the not-null column — PLAINTEXT, internal-trust posture).
 //
 // Hard row (no DeletedAt), per licensing convention: app deletion is final
 // and the app_key becomes reusable.
@@ -20,9 +19,9 @@ type LicenseApp struct {
 	AppKey    string `gorm:"column:app_key;size:64;uniqueIndex:uq_license_apps_app_key;not null"`
 	AppSecret string `gorm:"column:app_secret;size:128;not null"`
 	Name      string `gorm:"size:200;not null"`
-	// TenantKey maps the app to its tenant (phase ③ dual-stack window).
-	// Nullable transition: NULL = not yet backfilled; the data plane falls
-	// back to the app_key literal (T10 总装 clears the empties). Unique —
+	// TenantKey maps the app to its tenant. Nullable transition: NULL = not
+	// yet backfilled; the data plane falls back to the app_key literal (T10
+	// 总装 clears the empties). Unique —
 	// one gate row per tenant (shared by the trusted first-sight lazy
 	// upsert and the legacy mapping).
 	TenantKey *string `gorm:"size:16;column:tenant_key;uniqueIndex:uq_license_apps_tenant_key"`
