@@ -12,10 +12,10 @@
 //
 // License's admin surface splits in two under this scope:
 //
-//   - the app platform (CreateApp / GetApp / UpdateApp / RotateAppSecret /
-//     ListApps / DeleteApp) carries the phase ③ tenant mapping and is
-//     tenant-scopable exactly like the message/telemetry/storage app
-//     surfaces;
+//   - the tenant-config platform (CreateTenantConfig / GetTenantConfig /
+//     UpdateTenantConfig / ListTenantConfigs / DeleteTenantConfig) carries
+//     the phase ③ tenant mapping and is tenant-scopable exactly like the
+//     message/telemetry/storage app surfaces;
 //   - the key lifecycle (keys / entitlements / devices / trials / pubkey)
 //     has NO tenant dimension — license keys are platform-global assets,
 //     so those RPCs admit only the PLATFORM cross-view

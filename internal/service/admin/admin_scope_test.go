@@ -101,9 +101,6 @@ func TestAdminScope_AppPlatformBranch(t *testing.T) {
 	_, err = h.admin.UpdateTenantConfig(ctx, &licensev1.UpdateTenantConfigRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
-	_, err = h.admin.RotateTenantConfigSecret(ctx, &licensev1.RotateTenantConfigSecretRequest{TenantKey: scopeBeta})
-	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
-
 	_, err = h.admin.DeleteTenantConfig(ctx, &licensev1.DeleteTenantConfigRequest{TenantKey: scopeBeta})
 	require.ErrorIs(t, err, xcodes.ErrAppNotFound.New())
 
@@ -137,11 +134,6 @@ func TestAdminScope_AppPlatformBranch(t *testing.T) {
 	// used to surface as).
 	_, err = h.admin.CreateTenantConfig(tenantCtx("ten_gamma0000000"), &licensev1.CreateTenantConfigRequest{Name: "gamma-again"})
 	require.ErrorIs(t, err, xcodes.ErrBadRequest.New(), "duplicate tenant_key must answer the friendly BadRequest")
-	// cross-view reaches any row — the retired rotation answers the
-	// retirement error (the row resolved; scope passed)
-	_, err = h.admin.RotateTenantConfigSecret(platformCtx(), &licensev1.RotateTenantConfigSecretRequest{TenantKey: scopeBeta})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "retired")
 }
 
 // TestAdminScope_KeyLifecyclePlatformOnly: license keys are platform-global

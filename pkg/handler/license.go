@@ -166,11 +166,6 @@ func (h *Handler) UpdateTenantConfig(ctx context.Context, req *licensev1.UpdateT
 	return h.svc.UpdateTenantConfig(ctx, req)
 }
 
-// RotateTenantConfigSecret mints a new app secret.
-func (h *Handler) RotateTenantConfigSecret(ctx context.Context, req *licensev1.RotateTenantConfigSecretRequest) (*licensev1.RotateTenantConfigSecretResponse, error) {
-	return h.svc.RotateTenantConfigSecret(ctx, req)
-}
-
 // ListTenantConfigs lists the config rows in scope (no paging — low cardinality).
 func (h *Handler) ListTenantConfigs(ctx context.Context, req *licensev1.ListTenantConfigsRequest) (*licensev1.ListTenantConfigsResponse, error) {
 	return h.svc.ListTenantConfigs(ctx, req)
