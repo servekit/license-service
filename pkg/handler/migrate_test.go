@@ -30,7 +30,7 @@ func TestMigrate_Phase3TenantKeyBackfill(t *testing.T) {
 
 	// Seed a pre-③ row: NULL tenant_key is what pre-③ code wrote.
 	require.NoError(t, db.Create(&models.LicenseApp{
-		AppKey: "testkit", AppSecret: "s", Name: "testkit",
+		AppKey: "testkit", Name: "testkit",
 	}).Error)
 
 	require.NoError(t, Migrate(db), "backfill run must succeed")
@@ -52,7 +52,7 @@ func TestMigrate_Phase3ReconcileAborts(t *testing.T) {
 	require.NoError(t, Migrate(db))
 
 	require.NoError(t, db.Create(&models.LicenseApp{
-		AppKey: "ghost", AppSecret: "s", Name: "ghost",
+		AppKey: "ghost", Name: "ghost",
 	}).Error)
 	// Simulate the unhealable state directly: backfill fixed nothing because
 	// the row was inserted after it in the same run — force the drift.

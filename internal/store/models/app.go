@@ -15,10 +15,9 @@ import "time"
 // Hard row (no DeletedAt), per licensing convention: app deletion is final
 // and the app_key becomes reusable.
 type LicenseApp struct {
-	ID        int64  `gorm:"primaryKey"`
-	AppKey    string `gorm:"column:app_key;size:64;uniqueIndex:uq_license_apps_app_key;not null"`
-	AppSecret string `gorm:"column:app_secret;size:128;not null"`
-	Name      string `gorm:"size:200;not null"`
+	ID     int64  `gorm:"primaryKey"`
+	AppKey string `gorm:"column:app_key;size:64;uniqueIndex:uq_license_apps_app_key;not null"`
+	Name   string `gorm:"size:200;not null"`
 	// TenantKey maps the app to its tenant. Nullable transition: NULL = not
 	// yet backfilled; the data plane falls back to the app_key literal (T10
 	// 总装 clears the empties). Unique —

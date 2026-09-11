@@ -41,7 +41,6 @@ func seedApp(t *testing.T, db *gorm.DB, appKey, secret string, tenantKey *string
 	t.Helper()
 	require.NoError(t, db.Create(&models.LicenseApp{
 		AppKey:    appKey,
-		AppSecret: secret,
 		Name:      appKey,
 		TenantKey: tenantKey,
 		Disabled:  disabled,
@@ -60,7 +59,6 @@ func TestRequire_TrustedFirstSightLazilyCreatesGateRow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ten_abc123def456", c1.TenantKey)
 	require.NotNil(t, c1.App)
-	assert.NotEmpty(t, c1.App.AppSecret, "minted secret satisfies the not-null column")
 
 	var n int64
 	require.NoError(t, db.Model(&models.LicenseApp{}).Count(&n).Error)
@@ -115,7 +113,6 @@ func TestRequire_TrustedReusesUnbackfilledAppKeyEqualRow(t *testing.T) {
 	c, err := r.Require(tenantctx.WithTenant(context.Background(), key))
 	require.NoError(t, err)
 	require.NotNil(t, c.App)
-	assert.Equal(t, "lic_secret", c.App.AppSecret, "existing row reused verbatim")
 
 	var n int64
 	require.NoError(t, db.Model(&models.LicenseApp{}).Count(&n).Error)

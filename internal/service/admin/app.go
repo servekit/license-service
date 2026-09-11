@@ -1,15 +1,14 @@
 // Tenant-config admin RPCs for the licensing platform (phase ④ T6 rename
 // of the app registry): one config row per tenant; the row keeps its
-// internal calling-app identity — immutable, the secret minted server-side
-// and echoed on every read (internal-trust posture; the ops console is the
-// intended reader). Mutations log one admin_audit line like the rest of
-// this package.
+// internal calling-app identity — immutable. The credential column was
+// retired with the ④ window close (spec §9.1.3; the data plane
+// authenticates via the trusted x-tenant-key). Mutations log one
+// admin_audit line like the rest of this package.
 package admin
 
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -29,8 +28,7 @@ const appKeyGenAttempts = 3
 
 // CreateTenantConfig registers a tenant's config row. The internal app
 // identity is minted server-side ("lic_" + 8 base36 chars,
-// collision-checked). The secret is echoed on every read of
-// LicenseTenantConfigInfo. The row's tenant_key: a scoped caller is
+// collision-checked). The row's tenant_key: a scoped caller is
 // clamped to the injected key; the cross-view keeps its explicit
 // tenant_key, else the minted app_key literal (the phase ③ window mapping
 // the migration backfill also writes; T10 总装 remaps).
@@ -44,10 +42,6 @@ func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateT
 		return nil, err
 	}
 
-	secret, err := mintAppSecret()
-	if err != nil {
-		return nil, xcodes.ErrInternal.Wrap(err)
-	}
 	tenantKey := clampTenantKey(scope, req.GetTenantKey(), appKey)
 	// Friendly duplicate check (T7 cleanup): a tenant_key that already owns
 	// a config row would otherwise surface as the DB unique violation
@@ -61,7 +55,6 @@ func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateT
 	}
 	app := &models.LicenseApp{
 		AppKey:    appKey,
-		AppSecret: secret,
 		Name:      req.GetName(),
 		TenantKey: models.TenantKeyPtr(tenantKey),
 	}
@@ -69,7 +62,7 @@ func (s *Service) CreateTenantConfig(ctx context.Context, req *licensev1.CreateT
 		return nil, xcodes.ErrInternal.Wrap(err)
 	}
 	audit("create_tenant_config", "app:"+app.AppKey, "")
-	return &licensev1.CreateTenantConfigResponse{Config: appToProto(app), AppSecret: secret}, nil
+	return &licensev1.CreateTenantConfigResponse{Config: appToProto(app)}, nil
 }
 
 // GetTenantConfig returns the tenant's config row (tenant_key selector;
@@ -102,23 +95,18 @@ func (s *Service) UpdateTenantConfig(ctx context.Context, req *licensev1.UpdateT
 	return &licensev1.UpdateTenantConfigResponse{Config: appToProto(app)}, nil
 }
 
-// RotateTenantConfigSecret mints a new secret; the old one stops working
-// immediately (verification reads the DB on every call).
+// RotateTenantConfigSecret is retired: the app_secret column was dropped
+// when the ④ window closed (spec §9.1.3) — config rows carry no credential
+// to rotate. Ownership-checked against the caller's scope before refusing,
+// so a foreign row still answers not-found.
 func (s *Service) RotateTenantConfigSecret(ctx context.Context, req *licensev1.RotateTenantConfigSecretRequest) (*licensev1.RotateTenantConfigSecretResponse, error) {
 	app, err := s.configForTenantScoped(ctx, req.GetTenantKey())
 	if err != nil {
 		return nil, err
 	}
-	secret, err := mintAppSecret()
-	if err != nil {
-		return nil, xcodes.ErrInternal.Wrap(err)
-	}
-	if err := dal.UpdateAppSecret(ctx, s.db, app.ID, secret); err != nil {
-		return nil, xcodes.ErrInternal.Wrap(err)
-	}
-	app.AppSecret = secret
-	audit("rotate_tenant_config_secret", "app:"+app.AppKey, "")
-	return &licensev1.RotateTenantConfigSecretResponse{Config: appToProto(app), AppSecret: secret}, nil
+	_ = app
+	audit("rotate_tenant_config_secret_refused", "app:"+req.GetTenantKey(), "retired with the ④ window close")
+	return nil, xcodes.ErrBadRequest.New("app_secret was retired with the ④ window close; the data plane authenticates via the trusted x-tenant-key")
 }
 
 // ListTenantConfigs lists the config rows in the caller's scope: for an
@@ -188,7 +176,6 @@ func appToProto(a *models.LicenseApp) *licensev1.LicenseTenantConfigInfo {
 	return &licensev1.LicenseTenantConfigInfo{
 		Id:        a.ID,
 		AppKey:    a.AppKey,
-		AppSecret: a.AppSecret,
 		Name:      a.Name,
 		Disabled:  a.Disabled,
 		TenantKey: models.TenantKeyOf(a.TenantKey),
@@ -226,13 +213,4 @@ func mintAppKey() string {
 		out[i] = base36[int(b)%36]
 	}
 	return "lic_" + string(out)
-}
-
-// mintAppSecret mints "lic_" + 32 random bytes (base64url).
-func mintAppSecret() (string, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("mint app secret: %w", err)
-	}
-	return "lic_" + base64.RawURLEncoding.EncodeToString(buf), nil
 }

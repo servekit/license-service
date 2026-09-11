@@ -94,15 +94,6 @@ func UpdateApp(ctx context.Context, tx *gorm.DB, a *models.LicenseApp) error {
 	return res.Error
 }
 
-// UpdateAppSecret replaces the app credential.
-func UpdateAppSecret(ctx context.Context, tx *gorm.DB, id int64, secret string) error {
-	_, err := gorm.G[models.LicenseApp](tx).
-		Where(generated.LicenseApp.ID.Eq(id)).
-		Set(generated.LicenseApp.AppSecret.Set(secret)).
-		Update(ctx)
-	return err
-}
-
 // DeleteApp hard-deletes the app row (licensing keeps no soft-delete rows).
 func DeleteApp(ctx context.Context, tx *gorm.DB, id int64) error {
 	_, err := gorm.G[models.LicenseApp](tx).

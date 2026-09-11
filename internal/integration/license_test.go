@@ -131,7 +131,7 @@ func startStack(t *testing.T) *stack {
 	// assertion that its previously-valid pair no longer authenticates.
 	const legacyKey, legacySecret = "testkit", "lic_itest_secret"
 	require.NoError(t, db.Create(&models.LicenseApp{
-		AppKey: legacyKey, AppSecret: legacySecret, Name: "integration-legacy",
+		AppKey: legacyKey, Name: "integration-legacy",
 	}).Error)
 	appCtx := tenantctx.WithTenant(context.Background(), "ten_lictest00001")
 

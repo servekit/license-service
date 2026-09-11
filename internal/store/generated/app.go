@@ -9,7 +9,6 @@ import (
 var LicenseApp = struct {
 	ID        field.Number[int64]
 	AppKey    field.String
-	AppSecret field.String
 	Name      field.String
 	TenantKey field.String
 	Disabled  field.Bool
@@ -18,7 +17,6 @@ var LicenseApp = struct {
 }{
 	ID:        field.Number[int64]{}.WithColumn("id"),
 	AppKey:    field.String{}.WithColumn("app_key"),
-	AppSecret: field.String{}.WithColumn("app_secret"),
 	Name:      field.String{}.WithColumn("name"),
 	TenantKey: field.String{}.WithColumn("tenant_key"),
 	Disabled:  field.Bool{}.WithColumn("disabled"),

@@ -19,8 +19,6 @@ package tenantres
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -81,14 +79,9 @@ func (r *Resolver) ensureTrusted(ctx context.Context, tenantKey string) (*Caller
 		return nil, err
 	}
 	if app == nil {
-		secret, mintErr := mintTenantSecret()
-		if mintErr != nil {
-			return nil, xcodes.ErrInternal.Wrap(mintErr)
-		}
 		if err := dal.EnsureTenantApp(ctx, r.db, &models.LicenseApp{
 			AppKey:    tenantKey,
 			TenantKey: models.TenantKeyPtr(tenantKey),
-			AppSecret: secret,
 			Name:      tenantKey,
 		}); err != nil {
 			return nil, err
@@ -107,13 +100,3 @@ func (r *Resolver) ensureTrusted(ctx context.Context, tenantKey string) (*Caller
 	return &Caller{TenantKey: tenantKey, App: app}, nil
 }
 
-// mintTenantSecret mints "lic_" + 32 random bytes (base64url) — same shape
-// as admin-minted app secrets; never handed to anyone (trusted callers
-// authenticate by network position).
-func mintTenantSecret() (string, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("mint tenant secret: %w", err)
-	}
-	return "lic_" + base64.RawURLEncoding.EncodeToString(buf), nil
-}

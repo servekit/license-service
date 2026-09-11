@@ -35,6 +35,9 @@ func Migrate(db *gorm.DB) error {
 	if err := postMigrateTenantKey(db); err != nil {
 		return fmt.Errorf("post-migrate tenant_key: %w", err)
 	}
+	if err := postMigrateDropLegacy(db); err != nil {
+		return fmt.Errorf("post-migrate legacy drops: %w", err)
+	}
 	return nil
 }
 
@@ -84,5 +87,32 @@ func reconcileTenantKey(db *gorm.DB, table, probe string) error {
 	if filled != total {
 		return fmt.Errorf("reconcile %s: backfill incomplete: %d of %d rows filled", table, filled, total)
 	}
+	return nil
+}
+
+// postMigrateDropLegacy closes the ④ window on the data side
+// (deploy/phase4-drop-legacy.sql performs the identical procedure by hand):
+// the retired app_secret credential column leaves license_apps. Guarded on
+// the ③ tenant_key re-keying having converged (reconcileTenantKey above
+// fails the run otherwise); DROP COLUMN IF EXISTS keeps it idempotent on
+// fresh databases (testcontainers never carry the column).
+func postMigrateDropLegacy(db *gorm.DB) error {
+	//nolint:staticcheck // gorm.DB.Dialector is an interface field, not embedding
+	if db.Dialector.Name() != "postgres" {
+		return nil
+	}
+	var hasCol bool
+	if err := db.Raw(`SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_name = 'license_apps' AND column_name = 'app_secret')`).Scan(&hasCol).Error; err != nil {
+		return err
+	}
+	if !hasCol {
+		return nil // converged or fresh database
+	}
+	if err := db.Exec(`ALTER TABLE license_apps DROP COLUMN app_secret`).Error; err != nil {
+		return fmt.Errorf("drop license_apps.app_secret: %w", err)
+	}
+	slog.Info("migrate: phase4 legacy-column drops complete")
 	return nil
 }
